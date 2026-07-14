@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Expenses</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <section class="screen active">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='index.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 style="font-size:18px;">Expenses</h1></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+    <div id="expensesBody"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+initPage('none');
+function render(){
+  const fuel = DB.fuel.all(), ev = DB.ev.all(), maint = DB.maint.all(), insVehicles = DB.vehicles.all();
+  const byMonth = {};
+  const add = (m, amt) => { byMonth[m] = (byMonth[m]||0) + amt; };
+  fuel.forEach(f=>add(f.date.slice(0,7), Number(f.cost)||0));
+  ev.forEach(e=>add(e.date.slice(0,7), Number(e.cost)||0));
+  maint.forEach(m=>add(m.date.slice(0,7), Number(m.cost)||0));
+  insVehicles.forEach(v=>{ if(v.insurance?.startDate) add(v.insurance.startDate.slice(0,7), Number(v.insurance.premium)||0); });
+
+  const months = Object.keys(byMonth).sort().reverse();
+  const monthRows = months.map(m=>{
+    const d = new Date(m+'-01T00:00:00');
+    return `<div class="list-row"><div class="main"><div class="title">${d.toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</div></div><div class="amt">${fmtMoney(byMonth[m])}</div></div>`;
+  }).join('');
+
+  const byVehicle = {};
+  const addV = (vid, amt) => { byVehicle[vid] = (byVehicle[vid]||0) + amt; };
+  fuel.forEach(f=>addV(f.vehicleId, Number(f.cost)||0));
+  ev.forEach(e=>addV(e.vehicleId, Number(e.cost)||0));
+  maint.forEach(m=>addV(m.vehicleId, Number(m.cost)||0));
+  const vehicleRows = insVehicles.map(v=>`<div class="list-row"><div class="main"><div class="title">${esc(v.name)}</div><div class="meta">${esc(v.regNo)}</div></div><div class="amt">${fmtMoney(byVehicle[v.id]||0)}</div></div>`).join('');
+
+  const catTotals = {Fuel:0, 'EV Charging':0, Insurance:0, Maintenance:0};
+  fuel.forEach(f=>catTotals.Fuel += Number(f.cost)||0);
+  ev.forEach(e=>catTotals['EV Charging'] += Number(e.cost)||0);
+  maint.forEach(m=>catTotals.Maintenance += Number(m.cost)||0);
+  insVehicles.forEach(v=>{ catTotals.Insurance += Number(v.insurance?.premium)||0; });
+  const catRows = Object.entries(catTotals).map(([k,v])=>`<div class="list-row"><div class="main title">${k}</div><div class="amt">${fmtMoney(v)}</div></div>`).join('');
+
+  $('#expensesBody').innerHTML = `
+    <div class="card"><div class="card-title">By Category</div>${catRows}</div>
+    <div class="card"><div class="card-title">Monthly</div>${monthRows || `<div class="empty" style="padding:10px;">No expenses logged yet.</div>`}</div>
+    <div class="card"><div class="card-title">Vehicle-wise (all time)</div>${vehicleRows || `<div class="empty" style="padding:10px;">No vehicles yet.</div>`}</div>
+  `;
+}
+render();
+</script>
+</body>
+</html>

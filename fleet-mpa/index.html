@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Home</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-logo">🚚</div>
+  <h1 class="login-title">Fleet Manager</h1>
+  <p class="login-sub">Sign in to log today's trip, fuel and vehicle updates.</p>
+  <form id="loginForm">
+    <div class="field">
+      <label for="loginUser">User ID</label>
+      <input id="loginUser" type="text" autocomplete="username" value="Driver" placeholder="Driver" required />
+    </div>
+    <div class="field">
+      <label for="loginPass">Password</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••" required />
+    </div>
+    <p class="login-error" id="loginError">Incorrect User ID or Password.</p>
+    <button type="submit" class="btn">Sign In</button>
+  </form>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" class="hide">
+
+  <section class="screen active">
+    <div class="topbar">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="sub" id="todayDate"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="icon-btn" id="themeToggle" title="Toggle theme">🌙</button>
+        <button class="icon-btn" id="moreBtn" title="Settings & more" onclick="location.href='more.html'">⚙</button>
+      </div>
+    </div>
+
+    <div class="gauge-row" id="gaugeRow"></div>
+
+     <div class="card">
+      <div class="card-title">Vehicles <small><a href="vehicles.html" style="color:var(--amber);text-decoration:none;">Manage</a></small></div>
+      <div id="vehiclesBox"></div>
+    </div>
+    
+    <div class="card">
+      <div class="card-title">Alerts & Reminders <small id="alertCount"></small></div>
+      <div id="alertsList"></div>
+    </div>
+
+   
+
+    <div class="card">
+      <div class="card-title">This Month</div>
+      <div class="grid2">
+        <div>
+          <div style="color:var(--text-dim);font-size:12px;">Running KM</div>
+          <div class="mono" id="monthKm" style="font-size:20px;font-weight:700;">0</div>
+        </div>
+        <div>
+          <div style="color:var(--text-dim);font-size:12px;">Fuel + Charging Spend</div>
+          <div class="mono" id="monthSpend" style="font-size:20px;font-weight:700;">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recent Trips <small><a href="trips.html" style="color:var(--amber);text-decoration:none;">View all</a></small></div>
+      <div id="recentTrips"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Pending Owner Approvals</div>
+      <div id="pendingApprovals"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Quick Links</div>
+      <div class="btn-row">
+        <button class="btn secondary sm" onclick="location.href='trips.html'">🧭 Trips</button>
+        <button class="btn secondary sm" onclick="location.href='expenses.html'">💰 Expenses</button>
+        <button class="btn secondary sm" onclick="location.href='approvals.html'">✅ Approvals</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Bottom nav ---------- -->
+  <nav class="bottom-nav">
+    <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
+    <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
+    <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
+    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/common.js"></script>
+<script>
+function renderGauge(value, label, color){
+  const r = 36, c = 2*Math.PI*r;
+  const pct = Math.max(0, Math.min(1, value.pct ?? 1));
+  return `<div class="gauge">
+    <svg viewBox="0 0 88 88">
+      <circle cx="44" cy="44" r="${r}" fill="none" stroke="var(--surface-3)" stroke-width="8"/>
+      <circle cx="44" cy="44" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+        stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct)}" stroke-linecap="round" transform="rotate(-90 44 44)"/>
+    </svg>
+    <div class="val mono">${value.text}</div>
+    <div class="label">${label}</div>
+  </div>`;
+}
+
+function vehicleRowHtml(v){
+  const thumb = v.image ? `<img src="${v.image}" alt="">` : (v.fuelType==='Electric (EV)' ? '🔋' : '🚗');
+  const isEV = v.fuelType === 'Electric (EV)';
+  const stat = isEV ? evEfficiencyStats(v.id) : mileageStats(v.id);
+  const mileageText = stat ? `${stat.last.toFixed(1)} ${isEV?'km/kWh':'km/L'}` : '—';
+  return `<div class="vehicle-card" style="cursor:pointer;" onclick="location.href='vehicles.html?id=${v.id}'">
+    <div class="vehicle-thumb">${thumb}</div>
+    <div class="main" style="flex:1;">
+      <div class="title">${esc(v.name)}</div>
+      <div class="meta">${esc(v.regNo)} · ${esc(v.type)} · <span class="mono">${(v.odometer||0).toLocaleString('en-IN')} km</span></div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;">
+      <div class="mono" style="font-size:13px;font-weight:700;color:var(--amber);">${mileageText}</div>
+      <span class="chip ${v.status==='Active'?'green':v.status==='Under Service'?'orange':'neutral'}" style="margin-top:4px;">${esc(v.status)}</span>
+    </div>
+  </div>`;
+}
+
+function renderDashboard(){
+  $('#todayDate').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long', day:'numeric', month:'long'});
+  const vehicles = DB.vehicles.all();
+  const trips = DB.trips.all();
+  const fuel = DB.fuel.all();
+  const ev = DB.ev.all();
+
+  const dueService = vehicles.filter(v => (v.nextServiceOdo && v.odometer >= v.nextServiceOdo - 500) || (v.nextServiceDate && daysBetween(todayISO(), v.nextServiceDate) <= 15)).length;
+  const alerts = buildAlerts();
+  const redCount = alerts.filter(a=>a.level==='red').length;
+  const orangeCount = alerts.filter(a=>a.level==='orange').length;
+  $('#gaugeRow').innerHTML = [
+    renderGauge({text:String(vehicles.length), pct:1}, 'Total Vehicles', 'var(--amber)'),
+    renderGauge({text:String(dueService), pct: vehicles.length? dueService/vehicles.length : 0}, 'Due for Service', dueService? 'var(--red)':'var(--green)'),
+    renderGauge({text:String(redCount), pct:1}, 'Overdue Alerts', redCount? 'var(--red)':'var(--green)'),
+    renderGauge({text:String(orangeCount), pct:1}, 'Upcoming', orangeCount? 'var(--orange)':'var(--green)')
+  ].join('');
+
+  $('#vehiclesBox').innerHTML = vehicles.length ? vehicles.map((v,i)=>`<div style="padding:11px 0;${i<vehicles.length-1?'border-bottom:1px solid var(--border);':''}">${vehicleRowHtml(v)}</div>`).join('') : `<div class="empty" style="padding:16px;"><div class="ic">🚗</div>No vehicles yet.<br><a href="vehicles.html" style="color:var(--amber);">Add one →</a></div>`;
+
+  const alertsHtml = alerts.length ? alerts.slice(0,8).map(a=>`
+    <div class="alert-row"><span class="alert-dot ${a.level}"></span>
+      <div><div style="font-size:13.5px;font-weight:600;">${esc(a.text)}</div><div style="font-size:12px;color:var(--text-dim);">${esc(a.label)}</div></div>
+    </div>`).join('') : `<div class="empty" style="padding:10px;"><div class="ic">✅</div>All clear — nothing due soon.</div>`;
+  $('#alertsList').innerHTML = alertsHtml;
+  $('#alertCount').textContent = alerts.length ? `${alerts.length} item${alerts.length>1?'s':''}` : '';
+
+  const monthPrefix = todayISO().slice(0,7);
+  const monthKm = trips.filter(t=>t.date && t.date.startsWith(monthPrefix)).reduce((s,t)=>s+(Number(t.distance)||0), 0);
+  const monthSpend = fuel.filter(f=>f.date && f.date.startsWith(monthPrefix)).reduce((s,f)=>s+(Number(f.cost)||0),0)
+                    + ev.filter(e=>e.date && e.date.startsWith(monthPrefix)).reduce((s,e)=>s+(Number(e.cost)||0),0);
+  $('#monthKm').textContent = monthKm.toLocaleString('en-IN') + ' km';
+  $('#monthSpend').textContent = fmtMoney(monthSpend);
+
+  const recent = trips.slice(0,5);
+  $('#recentTrips').innerHTML = recent.length ? recent.map(t=>{
+    const v = DB.vehicles.get(t.vehicleId);
+    return `<div class="list-row"><div class="main"><div class="title">${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(t.date)} · ${esc(t.purpose||'—')}</div></div><div class="amt">${t.distance} km</div></div>`;
+  }).join('') : `<div class="empty" style="padding:10px;"><div class="ic">🧭</div>No trips logged yet.</div>`;
+
+  const pending = DB.maint.all().filter(m=>m.approvalStatus==='Pending');
+  $('#pendingApprovals').innerHTML = pending.length ? pending.slice(0,5).map(m=>{
+    const v = DB.vehicles.get(m.vehicleId);
+    return `<div class="list-row"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)}</div></div><div class="amt">${fmtMoney(m.cost)}</div></div>`;
+  }).join('') : `<div class="empty" style="padding:10px;"><div class="ic">✅</div>No pending approvals.</div>`;
+}
+
+function boot(){
+  $('#loginScreen').classList.add('hide');
+  $('#app').classList.remove('hide');
+  applyTheme(DB.settings.get().theme || 'dark');
+  wireThemeToggle();
+  markActiveNav('index.html');
+  renderDashboard();
+}
+$('#loginForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const u = $('#loginUser').value.trim(), p = $('#loginPass').value;
+  if(AUTH.login(u,p)){ boot(); } else { $('#loginError').style.display = 'block'; }
+});
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; });
+if(AUTH.isLoggedIn()) boot();
+</script>
+</body>
+</html>

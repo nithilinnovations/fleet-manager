@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Vehicle Details</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- LIST VIEW -->
+  <section class="screen active" id="listView">
+    <div class="topbar">
+      <div><h1>Vehicle Details</h1><div class="sub" id="vehicleCountSub"></div></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+    <div id="vehicleList"></div>
+  </section>
+
+  <!-- DETAIL VIEW -->
+  <section class="screen" id="detailView">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='vehicles.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 id="vdName" style="font-size:18px;"></h1></div>
+      <button class="icon-btn" id="vdEditBtn">✎</button>
+    </div>
+    <div id="vdBody"></div>
+  </section>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
+    <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
+    <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
+    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+  </nav>
+
+  <button class="fab" id="fabBtn" onclick="openVehicleForm()">+</button>
+</div>
+
+<!-- Sheet -->
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h2 id="sheetTitle">Title</h2><button class="icon-btn" id="sheetClose">✕</button></div>
+  <div id="sheetBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/common.js"></script>
+<script>
+    console.log("COMMON LOADED");
+</script>
+
+<script src="js/api-new.js"></script>
+
+<script>
+    console.log("API LOADED", typeof addVehicle);
+</script>
+
+<script>
+initPage('vehicles.html');
+
+const Sheet = {
+  open(title, html, onMount){
+    $('#sheetTitle').textContent = title;
+    $('#sheetBody').innerHTML = html;
+    $('#sheetBackdrop').classList.add('open');
+    $('#sheet').classList.add('open');
+    if(onMount) onMount($('#sheetBody'));
+  },
+  close(){ $('#sheetBackdrop').classList.remove('open'); $('#sheet').classList.remove('open'); }
+};
+$('#sheetClose').onclick = Sheet.close;
+$('#sheetBackdrop').onclick = Sheet.close;
+
+function vehicleRowHtml(v){
+  const thumb = v.image ? `<img src="${v.image}" alt="">` : (v.fuelType==='Electric (EV)' ? '🔋' : '🚗');
+  return `<div class="vehicle-card" style="cursor:pointer;" onclick="location.href='vehicles.html?id=${v.id}'">
+    <div class="vehicle-thumb">${thumb}</div>
+    <div class="main" style="flex:1;">
+      <div class="title">${esc(v.name)}</div>
+      <div class="meta">${esc(v.regNo)} · ${esc(v.type)} · <span class="mono">${(v.odometer||0).toLocaleString('en-IN')} km</span></div>
+    </div>
+    <span class="chip ${v.status==='Active'?'green':v.status==='Under Service'?'orange':'neutral'}">${esc(v.status)}</span>
+  </div>`;
+}
+
+async function renderList() {
+
+    try {
+
+        const result = await getVehicles();
+        const list = result.data;
+
+        $('#vehicleCountSub').textContent =
+            `${list.length} vehicle${list.length !== 1 ? 's' : ''} in fleet`;
+
+        $('#vehicleList').innerHTML =
+            list.length
+                ? list.map(v => `<div class="card">${vehicleRowHtml(v)}</div>`).join("")
+                : `
+                <div class="empty">
+                    <div class="ic">🚗</div>
+                    No vehicles yet.<br>
+                    Add your first vehicle to get started.
+                    <button class="btn" onclick="openVehicleForm()">
+                        + Add Vehicle
+                    </button>
+                </div>
+                `;
+
+    } catch (err) {
+        console.error(err);
+        toast("Failed to load vehicles");
+    }
+
+}
+async function openVehicleForm(existingId){
+ let v = null;
+
+if (existingId) {
+    const result = await getVehicle(existingId);
+
+    if (result.success) {
+        v = result.data;
+    }
+}
+  const isEV = (fuelType) => fuelType === 'Electric (EV)';
+  const vehicleTypes = ['Car','SUV','Pickup','Van','Others'];
+  const currentType = v?.type || 'Car'; // default to Car for new vehicles
+  const html = `
+    <div class="field"><label>Vehicle Name</label><input id="fName" value="${esc(v?.name||'')}" placeholder="e.g. Tata Ace" required></div>
+    <div class="field"><label>Registration Number</label><input id="fReg" value="${esc(v?.regNo||'')}" placeholder="TN 07 AB 1234" required></div>
+    <div class="field"><label>Vehicle Type</label><select id="fType">
+      ${vehicleTypes.map(o=>`<option ${currentType===o?'selected':''}>${o}</option>`).join('')}</select></div>
+    <div class="field"><label>Fuel Type</label><select id="fFuel">
+      ${['Petrol','Diesel','Electric (EV)','Hybrid','CNG'].map(o=>`<option ${v?.fuelType===o?'selected':''}>${o}</option>`).join('')}</select></div>
+    <div class="field"><label>VIN / Chassis Number <span style="color:var(--text-faint);font-weight:400;">(optional)</span></label><input id="fVin" value="${esc(v?.vin||'')}" placeholder="Leave blank if not available"></div>
+    <div class="field"><label>Current Odometer (km)</label><input id="fOdo" type="number" value="${v?.odometer||0}"></div>
+    <div id="fuelFieldsWrap"></div>
+    <div class="field"><label>Vehicle Status</label><select id="fStatus">
+      ${['Active','Under Service','Inactive'].map(o=>`<option ${v?.status===o?'selected':''}>${o}</option>`).join('')}</select></div>
+    <div class="field"><label>Vehicle Image</label><input id="fImage" type="file" accept="image/*"></div>
+    <div class="field" style="display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="fAssigned" style="width:auto;" ${v?.assignedToday?'checked':''}>
+      <label class="mb0" for="fAssigned" style="margin:0;">Assign as today's vehicle</label>
+    </div>
+    <button class="btn mt16" id="saveVehicleBtn">${v?'Save Changes':'Add Vehicle'}</button>
+    ${v?`<button class="btn danger mt8" id="deleteVehicleBtn">Delete Vehicle</button>`:''}
+  `;
+  Sheet.open(v?'Edit Vehicle':'Add Vehicle', html, (root)=>{
+    const fuelSel = $('#fFuel', root);
+    const renderFuelFields = () => {
+      const wrap = $('#fuelFieldsWrap', root);
+      if(isEV(fuelSel.value)){
+        wrap.innerHTML = `<div class="field"><label>Battery Capacity (kWh)</label><input id="fBattery" type="number" value="${v?.batteryCapacity||''}"></div>`;
+      } else {
+        wrap.innerHTML = `<div class="field"><label>Tank Capacity (Litres)</label><input id="fTank" type="number" value="${v?.tankCapacity||''}"></div>`;
+      }
+    };
+    renderFuelFields();
+    fuelSel.onchange = renderFuelFields;
+
+    $('#saveVehicleBtn', root).onclick = async () => {
+      const name = $('#fName',root).value.trim();
+      const regNo = $('#fReg',root).value.trim();
+      if(!name || !regNo){ toast('Please enter vehicle name and registration number'); return; }
+      let image = v?.image || null;
+      const imgFile = $('#fImage',root);
+      if(imgFile.files.length){ image = await fileToDataUrl(imgFile); }
+      const record = Object.assign({}, v, {
+        id: v?.id || uid(),
+        name, regNo,
+        type: $('#fType',root).value,
+        fuelType: fuelSel.value,
+        vin: $('#fVin',root).value.trim(), // optional — no validation required
+        odometer: Number($('#fOdo',root).value)||0,
+        tankCapacity: isEV(fuelSel.value) ? v?.tankCapacity : Number($('#fTank',root)?.value)||undefined,
+        batteryCapacity: isEV(fuelSel.value) ? Number($('#fBattery',root)?.value)||undefined : v?.batteryCapacity,
+        status: $('#fStatus',root).value,
+        image,
+        assignedToday: $('#fAssigned',root).checked,
+        insurance: v?.insurance || {}, puc: v?.puc || {}, fc: v?.fc || {},
+        wheelAlignment: v?.wheelAlignment || {}, wheelBalancing: v?.wheelBalancing || {},
+        tyreRotation: v?.tyreRotation || {}, battery: v?.battery || {}, tyres: v?.tyres || [],
+        documents: v?.documents || {}
+      });
+      if(record.assignedToday){
+        const all = DB.vehicles.all().map(x=> x.id===record.id ? x : Object.assign({},x,{assignedToday:false}));
+        DB.vehicles.save(all);
+      }
+    try {
+    const payload = {
+    id: record.id,
+    name: record.name,
+    regNo: record.regNo,
+    type: record.type,
+    fuelType: record.fuelType,
+    vin: record.vin,
+    odometer: record.odometer,
+    tankCapacity: record.tankCapacity,
+    batteryCapacity: record.batteryCapacity,
+    status: record.status,
+    assignedToday: record.assignedToday
+};
+
+if (v) {
+    await updateVehicle(v.id, payload);
+} else {
+    await addVehicle(payload);
+}
+
+    //DB.vehicles.upsert(record);
+
+    Sheet.close();
+    toast(v ? "Vehicle updated" : "Vehicle added");
+    location.href = "vehicles.html";
+
+} catch (err) {
+    console.error(err);
+    toast("Failed to save vehicle");
+}
+      
+    };
+    if (v) {
+  $('#deleteVehicleBtn', root).onclick = async () => {
+
+    if (confirm('Delete this vehicle and keep its history? This cannot be undone.')) {
+
+      try {
+
+        await deleteVehicle(v.id);
+
+        Sheet.close();
+
+        toast("Vehicle deleted");
+
+        location.href = "vehicles.html";
+
+      } catch (err) {
+
+        console.error(err);
+
+        toast("Failed to delete vehicle");
+
+      }
+
+    }
+
+  };
+}
+  });
+}
+
+async function renderDetail(id){
+ const result = await getVehicle(id);
+
+if (!result.success) {
+    location.href = "vehicles.html";
+    return;
+}
+
+const v = result.data;
+  $('#vdName').textContent = v.name;
+  $('#vdEditBtn').onclick = () => openVehicleForm(v.id);
+
+  const mstat = mileageStats(v.id);
+  const estat = evEfficiencyStats(v.id);
+  const isEV = v.fuelType === 'Electric (EV)';
+
+  $('#vdBody').innerHTML = `
+    <div class="card">
+      <div class="row-between">
+        <span class="chip ${v.status==='Active'?'green':v.status==='Under Service'?'orange':'neutral'}">${esc(v.status)}</span>
+        <span class="chip ${isEV?'teal':'neutral'}">${esc(v.fuelType)}</span>
+      </div>
+      <div class="grid2 mt16">
+        <div><div style="font-size:12px;color:var(--text-dim);">Odometer</div><div class="mono" style="font-size:18px;font-weight:700;">${(v.odometer||0).toLocaleString('en-IN')} km</div></div>
+        <div><div style="font-size:12px;color:var(--text-dim);">${isEV?'Battery Capacity':'Tank Capacity'}</div><div class="mono" style="font-size:18px;font-weight:700;">${isEV? (v.batteryCapacity||'—')+' kWh' : (v.tankCapacity||'—')+' L'}</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:12px;">Reg No: <span class="mono" style="color:var(--text);">${esc(v.regNo)}</span> · VIN: ${v.vin ? esc(v.vin) : '<span style="color:var(--text-faint);">not provided</span>'}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">${isEV?'EV Efficiency':'Mileage'}</div>
+      ${isEV ? (estat ? `<div class="grid2"><div>Last: <b class="mono">${estat.last.toFixed(2)} km/kWh</b></div><div>Avg: <b class="mono">${estat.avg.toFixed(2)} km/kWh</b></div><div>Best: <b class="mono">${estat.best.toFixed(2)}</b></div><div>Worst: <b class="mono">${estat.worst.toFixed(2)}</b></div></div>` : `<div style="color:var(--text-dim);">Add 2+ charging entries to see efficiency.</div>`)
+             : (mstat ? `<div class="grid2"><div>Last: <b class="mono">${mstat.last.toFixed(1)} km/L</b></div><div>Avg: <b class="mono">${mstat.avg.toFixed(1)} km/L</b></div><div>Best: <b class="mono">${mstat.best.toFixed(1)}</b></div><div>Worst: <b class="mono">${mstat.worst.toFixed(1)}</b></div></div>` : `<div style="color:var(--text-dim);">Add 2+ Full Tank fuel entries to see mileage.</div>`)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div class="btn-row">
+        <button class="btn secondary sm" onclick="location.href='trips.html?vehicle=${v.id}'">+ Trip</button>
+        <button class="btn secondary sm" onclick="location.href='fuel.html?vehicle=${v.id}'">${isEV?'+ Charge':'+ Fuel'}</button>
+        <button class="btn secondary sm" onclick="location.href='maintenance.html?vehicle=${v.id}'">+ Service</button>
+      </div>
+      <div class="btn-row mt8">
+        <button class="btn secondary sm" onclick="location.href='documents.html?vehicle=${v.id}'">📄 Documents & Reminders</button>
+      </div>
+    </div>
+  `;
+}
+
+function boot(){
+  const id = qs('id');
+  if(id){
+    $('#listView').classList.remove('active');
+    $('#detailView').classList.add('active');
+    $('#fabBtn').classList.add('hide');
+    renderDetail(id);
+  } else {
+    $('#detailView').classList.remove('active');
+    $('#listView').classList.add('active');
+    $('#fabBtn').classList.remove('hide');
+    renderList();
+  }
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Settings</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <section class="screen active">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='index.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 style="font-size:18px;">Settings</h1></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="field mb0">
+        <label>Approval threshold (₹) — maintenance above this needs owner approval</label>
+        <input type="number" id="approvalThresholdInput" />
+      </div>
+      <div class="field mb0" style="margin-top:12px;">
+        <label>Driver</label>
+        <input type="text" id="driverNameInput" />
+      </div>
+      <button class="btn secondary mt16" id="saveSettingsBtn">Save Settings</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data</div>
+      <button class="btn secondary" id="exportDataBtn">Export All Data (JSON)</button>
+      <button class="btn secondary mt8" id="installBtn">Install App to Home Screen</button>
+      <button class="btn danger mt8" id="logoutBtn">Log Out</button>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+initPage('none');
+const s = DB.settings.get();
+$('#approvalThresholdInput').value = s.approvalThreshold;
+$('#driverNameInput').value = s.driverName;
+
+$('#saveSettingsBtn').onclick = () => {
+  const s2 = DB.settings.get();
+  s2.approvalThreshold = Number($('#approvalThresholdInput').value)||5000;
+  s2.driverName = $('#driverNameInput').value || 'Driver';
+  DB.settings.save(s2); toast('Settings saved');
+};
+$('#exportDataBtn').onclick = () => {
+  const data = { vehicles:DB.vehicles.all(), trips:DB.trips.all(), fuel:DB.fuel.all(), ev:DB.ev.all(), maintenance:DB.maint.all(), settings:DB.settings.get() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fleet-data-export.json'; a.click();
+};
+$('#logoutBtn').onclick = () => { AUTH.logout(); };
+
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; });
+$('#installBtn').onclick = () => {
+  if(deferredInstallPrompt){ deferredInstallPrompt.prompt(); }
+  else toast('Use your browser menu → "Add to Home Screen" to install.');
+};
+</script>
+</body>
+</html>

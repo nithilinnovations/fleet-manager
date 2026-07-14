@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Trips</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <section class="screen active">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='index.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 style="font-size:18px;">Trips</h1></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+
+    <div class="section-head">
+      <h2>Add Trip</h2>
+      <button class="inline-form-toggle" id="formToggleBtn" title="Add trip">+</button>
+    </div>
+    <div class="inline-form-panel" id="formPanel">
+      <div class="inline-form-panel-inner" id="formPanelInner"></div>
+    </div>
+
+    <div id="tripList"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/common.js"></script>
+<script>
+initPage('trips.html');
+let panelOpen = false;
+const preselectVehicle = qs('vehicle');
+
+function togglePanel(forceOpen){
+  panelOpen = forceOpen !== undefined ? forceOpen : !panelOpen;
+  $('#formPanel').classList.toggle('open', panelOpen);
+  $('#formToggleBtn').textContent = panelOpen ? '×' : '+';
+  if(panelOpen) renderForm();
+}
+$('#formToggleBtn').onclick = () => togglePanel();
+
+function renderForm(){
+  const wrap = $('#formPanelInner');
+  if(!DB.vehicles.all().length){ wrap.innerHTML = `<div style="color:var(--text-dim);padding:8px 0;">Add a vehicle first from Vehicle Details.</div>`; return; }
+  wrap.innerHTML = `
+    <div class="field"><label>Date</label><input id="tDate" type="date" value="${todayISO()}"></div>
+    <div class="field"><label>Vehicle</label><select id="tVehicle">${vehicleOptions(preselectVehicle)}</select></div>
+    <div class="field"><label>Starting Odometer (km)</label><input id="tStart" type="number"></div>
+    <div class="field"><label>Ending Odometer (km)</label><input id="tEnd" type="number"></div>
+    <div class="field mb0"><label>Distance</label><div class="mono" id="tDist" style="font-size:20px;font-weight:700;padding:8px 0;">0 km</div></div>
+    <div class="field"><label>Purpose</label><input id="tPurpose" placeholder="e.g. Client delivery"></div>
+    <div class="field"><label>Remarks (optional)</label><textarea id="tRemarks"></textarea></div>
+    <div class="field"><label>Photo (optional)</label><input id="tPhoto" type="file" accept="image/*"></div>
+    <button class="btn mt8" id="saveTripBtn">Save Trip</button>
+  `;
+  const vSel = $('#tVehicle');
+  const applyOdo = () => { const v = DB.vehicles.get(vSel.value); if(v) $('#tStart').value = v.odometer||0; recalc(); };
+  const recalc = () => { const s=Number($('#tStart').value)||0, e=Number($('#tEnd').value)||0; $('#tDist').textContent = Math.max(0,e-s) + ' km'; };
+  vSel.onchange = applyOdo; $('#tStart').oninput = recalc; $('#tEnd').oninput = recalc;
+  applyOdo();
+  $('#saveTripBtn').onclick = async () => {
+    const start = Number($('#tStart').value), end = Number($('#tEnd').value);
+    if(end < start){ toast('Ending odometer must be greater than starting'); return; }
+    const photo = await fileToDataUrl($('#tPhoto'));
+    const t = { id:uid(), date:$('#tDate').value, vehicleId:vSel.value, startOdo:start, endOdo:end, distance:end-start, purpose:$('#tPurpose').value, remarks:$('#tRemarks').value, photo };
+    DB.trips.add(t);
+    const v = DB.vehicles.get(vSel.value); if(v && end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
+    toast('Trip saved'); togglePanel(false); renderList();
+  };
+}
+
+function renderList(){
+  const trips = DB.trips.all();
+  $('#tripList').innerHTML = trips.length ? trips.map(t=>{
+    const v = DB.vehicles.get(t.vehicleId);
+    return `<div class="card">
+      <div class="row-between"><div class="title" style="font-weight:700;">${esc(v?v.name:'—')}</div><span class="chip neutral">${fmtDate(t.date)}</span></div>
+      <div class="grid2 mt8">
+        <div><span style="font-size:12px;color:var(--text-dim);">Start</span><div class="mono">${t.startOdo} km</div></div>
+        <div><span style="font-size:12px;color:var(--text-dim);">End</span><div class="mono">${t.endOdo} km</div></div>
+      </div>
+      <div class="row-between mt8"><span class="chip teal">${t.distance} km</span><span style="font-size:13px;color:var(--text-dim);">${esc(t.purpose||'')}</span></div>
+      ${t.remarks?`<div class="meta mt8" style="color:var(--text-dim);font-size:12.5px;">${esc(t.remarks)}</div>`:''}
+    </div>`;
+  }).join('') : `<div class="empty"><div class="ic">🧭</div>No trips yet. Tap + above to log one.</div>`;
+}
+
+renderList();
+if(preselectVehicle) togglePanel(true);
+</script>
+</body>
+</html>

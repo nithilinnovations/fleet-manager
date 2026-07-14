@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Fuel / Charging</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- LIST VIEW -->
+  <section class="screen active" id="listView">
+    <div class="topbar">
+      <div><h1>Fuel / Charging</h1><div class="sub">Tap a vehicle to add or view entries</div></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+    <div id="vehicleList"></div>
+  </section>
+
+  <!-- DETAIL VIEW -->
+  <section class="screen" id="detailView">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='fuel.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 id="vdName" style="font-size:18px;"></h1></div>
+      <div style="width:42px;"></div>
+    </div>
+    <div id="formWrap"></div>
+    <div class="section-head"><h2>Past Entries</h2></div>
+    <div id="entryList"></div>
+  </section>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
+    <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
+    <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
+    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/common.js"></script>
+<script>
+initPage('fuel.html');
+
+/* ============================== LIST VIEW ============================== */
+function renderVehicleList(){
+  const vehicles = DB.vehicles.all();
+  $('#vehicleList').innerHTML = vehicles.length ? vehicles.map(v=>{
+    const isEV = v.fuelType === 'Electric (EV)';
+    const stat = isEV ? evEfficiencyStats(v.id) : mileageStats(v.id);
+    const statLine = stat ? `Last: <b class="mono">${stat.last.toFixed(1)} ${isEV?'km/kWh':'km/L'}</b>` : 'No entries yet';
+    const thumb = v.image ? `<img src="${v.image}" alt="">` : (isEV ? '🔋' : '⛽');
+    return `<div class="card"><div class="vehicle-card" style="cursor:pointer;" onclick="location.href='fuel.html?vehicle=${v.id}'">
+      <div class="vehicle-thumb">${thumb}</div>
+      <div class="main" style="flex:1;">
+        <div class="title">${esc(v.name)}</div>
+        <div class="meta">${esc(v.regNo)} · ${statLine}</div>
+      </div>
+      <span class="chip ${isEV?'teal':'neutral'}">${isEV?'EV':esc(v.fuelType)}</span>
+    </div></div>`;
+  }).join('') : `<div class="empty"><div class="ic">⛽</div>No vehicles yet.<br>Add a vehicle first from Vehicles.<button class="btn" onclick="location.href='vehicles.html'">Go to Vehicles</button></div>`;
+}
+
+/* ============================== DETAIL VIEW ============================== */
+function renderDetail(vid){
+  const v = DB.vehicles.get(vid);
+  if(!v){ location.href = 'fuel.html'; return; }
+  const isEV = v.fuelType === 'Electric (EV)';
+  $('#vdName').textContent = v.name;
+  isEV ? renderEvForm(v) : renderFuelForm(v);
+  renderEntries(v, isEV);
+}
+
+function lastKnownOdo(v){
+  // Prefer the most recent fuel/EV entry's ending odometer, else the vehicle's stored odometer.
+  const fuel = DB.fuel.byVehicle(v.id), ev = DB.ev.byVehicle(v.id);
+  const lastFuel = fuel.length ? fuel[fuel.length-1].endOdo : 0;
+  const lastEv = ev.length ? ev[ev.length-1].endOdo : 0;
+  return Math.max(v.odometer||0, lastFuel, lastEv);
+}
+
+function renderFuelForm(v){
+  $('#formWrap').innerHTML = `
+    <div class="card">
+      <div class="card-title">Add Fuel Entry</div>
+      <div class="field"><label>Date</label><input id="fuDate" type="date" value="${todayISO()}"></div>
+      <div class="field mb0"><label>Vehicle</label><div class="mono" style="padding:10px 0;font-weight:600;">${esc(v.name)} — ${esc(v.regNo)}</div></div>
+      <div class="grid2">
+        <div class="field"><label>Starting Odometer (km)</label><input id="fuStart" type="number"></div>
+        <div class="field"><label>Ending Odometer (km)</label><input id="fuEnd" type="number"></div>
+      </div>
+      <div class="field mb0"><label>Total (km)</label><div class="mono" id="fuTotalKm" style="font-size:20px;font-weight:700;padding:6px 0;">0 km</div></div>
+      <div class="grid2 mt16">
+        <div class="field"><label>Fuel Rate / Litre (₹)</label><input id="fuRate" type="number" step="0.01"></div>
+        <div class="field"><label>Fuel Filled (Litres)</label><input id="fuLitres" type="number" step="0.01"></div>
+      </div>
+      <div class="grid2">
+        <div class="field mb0"><label>Total Fuel Filling Cost (₹)</label><div class="mono" id="fuTotalCost" style="font-size:18px;font-weight:700;padding:6px 0;">₹0</div></div>
+        <div class="field mb0"><label>Mileage (km/L)</label><div class="mono" id="fuMileage" style="font-size:18px;font-weight:700;padding:6px 0;">—</div></div>
+      </div>
+      <div class="field mt16"><label>Fuel Station</label><input id="fuStation" placeholder="e.g. Indian Oil, Anna Nagar"></div>
+      <button class="btn mt8" id="saveFuelBtn">Save Fuel Entry</button>
+    </div>
+  `;
+  $('#fuStart').value = lastKnownOdo(v);
+  const recalc = () => {
+    const s = Number($('#fuStart').value)||0, e = Number($('#fuEnd').value)||0;
+    const km = Math.max(0, e-s);
+    $('#fuTotalKm').textContent = km + ' km';
+    const rate = Number($('#fuRate').value)||0, litres = Number($('#fuLitres').value)||0;
+    $('#fuTotalCost').textContent = fmtMoney(rate*litres);
+    $('#fuMileage').textContent = (litres>0 && km>0) ? (km/litres).toFixed(1)+' km/L' : '—';
+  };
+  ['fuStart','fuEnd','fuRate','fuLitres'].forEach(id => $('#'+id).oninput = recalc);
+  recalc();
+
+  $('#saveFuelBtn').onclick = () => {
+    const start = Number($('#fuStart').value), end = Number($('#fuEnd').value);
+    const litres = Number($('#fuLitres').value), rate = Number($('#fuRate').value);
+    if(end <= start){ toast('Ending odometer must be greater than starting'); return; }
+    if(!litres){ toast('Enter fuel filled (litres)'); return; }
+    const km = end - start;
+    const f = { id:uid(), date:$('#fuDate').value, vehicleId:v.id, startOdo:start, endOdo:end, distance:km,
+      rate, litres, cost: Math.round(rate*litres), mileage: Number((km/litres).toFixed(2)), station:$('#fuStation').value };
+    DB.fuel.add(f);
+    if(end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
+    toast('Fuel entry saved');
+    renderDetail(v.id);
+  };
+}
+
+function renderEvForm(v){
+  $('#formWrap').innerHTML = `
+    <div class="card">
+      <div class="card-title">Add Charging Entry</div>
+      <div class="field"><label>Date</label><input id="evDate" type="date" value="${todayISO()}"></div>
+      <div class="field mb0"><label>Vehicle</label><div class="mono" style="padding:10px 0;font-weight:600;">${esc(v.name)} — ${esc(v.regNo)}</div></div>
+      <div class="grid2">
+        <div class="field"><label>Starting Odometer (km)</label><input id="evStart" type="number"></div>
+        <div class="field"><label>Ending Odometer (km)</label><input id="evEnd" type="number"></div>
+      </div>
+      <div class="field mb0"><label>Total (km)</label><div class="mono" id="evTotalKm" style="font-size:20px;font-weight:700;padding:6px 0;">0 km</div></div>
+      <div class="grid2 mt16">
+        <div class="field"><label>Charging Rate / kWh (₹)</label><input id="evRate" type="number" step="0.01"></div>
+        <div class="field"><label>Units Charged (kWh)</label><input id="evUnits" type="number" step="0.01"></div>
+      </div>
+      <div class="grid2">
+        <div class="field mb0"><label>Total Charging Cost (₹)</label><div class="mono" id="evTotalCost" style="font-size:18px;font-weight:700;padding:6px 0;">₹0</div></div>
+        <div class="field mb0"><label>Efficiency (km/kWh)</label><div class="mono" id="evEff" style="font-size:18px;font-weight:700;padding:6px 0;">—</div></div>
+      </div>
+      <div class="field mt16"><label>Charging Location</label><input id="evLocation" placeholder="e.g. Home, Highway DC station"></div>
+      <button class="btn mt8" id="saveEvBtn">Save Charging Entry</button>
+    </div>
+  `;
+  $('#evStart').value = lastKnownOdo(v);
+  const recalc = () => {
+    const s = Number($('#evStart').value)||0, e = Number($('#evEnd').value)||0;
+    const km = Math.max(0, e-s);
+    $('#evTotalKm').textContent = km + ' km';
+    const rate = Number($('#evRate').value)||0, units = Number($('#evUnits').value)||0;
+    $('#evTotalCost').textContent = fmtMoney(rate*units);
+    $('#evEff').textContent = (units>0 && km>0) ? (km/units).toFixed(2)+' km/kWh' : '—';
+  };
+  ['evStart','evEnd','evRate','evUnits'].forEach(id => $('#'+id).oninput = recalc);
+  recalc();
+
+  $('#saveEvBtn').onclick = () => {
+    const start = Number($('#evStart').value), end = Number($('#evEnd').value);
+    const units = Number($('#evUnits').value), rate = Number($('#evRate').value);
+    if(end <= start){ toast('Ending odometer must be greater than starting'); return; }
+    if(!units){ toast('Enter units charged (kWh)'); return; }
+    const km = end - start;
+    const e = { id:uid(), date:$('#evDate').value, vehicleId:v.id, startOdo:start, endOdo:end, distance:km,
+      rate, units, cost: Math.round(rate*units), efficiency: Number((km/units).toFixed(2)), location:$('#evLocation').value };
+    DB.ev.add(e);
+    if(end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
+    toast('Charging entry saved');
+    renderDetail(v.id);
+  };
+}
+
+function renderEntries(v, isEV){
+  const entries = isEV ? DB.ev.byVehicle(v.id).slice().reverse() : DB.fuel.byVehicle(v.id).slice().reverse();
+  if(!entries.length){ $('#entryList').innerHTML = `<div class="empty" style="padding:16px;"><div class="ic">${isEV?'🔋':'⛽'}</div>No entries yet for this vehicle.</div>`; return; }
+  $('#entryList').innerHTML = entries.map(en => isEV ? `
+    <div class="card">
+      <div class="row-between"><div class="title" style="font-weight:700;">${en.distance} km</div><span class="chip teal">${en.efficiency?en.efficiency.toFixed(2)+' km/kWh':'—'}</span></div>
+      <div class="grid2 mt8">
+        <div><span style="font-size:12px;color:var(--text-dim);">Odometer</span><div class="mono">${en.startOdo} → ${en.endOdo} km</div></div>
+        <div><span style="font-size:12px;color:var(--text-dim);">Units</span><div class="mono">${en.units} kWh</div></div>
+      </div>
+      <div class="row-between mt8"><span class="amt mono">${fmtMoney(en.cost)}</span><span style="font-size:12px;color:var(--text-dim);">${fmtDate(en.date)} · ${esc(en.location||'')}</span></div>
+    </div>` : `
+    <div class="card">
+      <div class="row-between"><div class="title" style="font-weight:700;">${en.distance} km</div><span class="chip green">${en.mileage?en.mileage.toFixed(1)+' km/L':'—'}</span></div>
+      <div class="grid2 mt8">
+        <div><span style="font-size:12px;color:var(--text-dim);">Odometer</span><div class="mono">${en.startOdo} → ${en.endOdo} km</div></div>
+        <div><span style="font-size:12px;color:var(--text-dim);">Litres</span><div class="mono">${en.litres} L @ ₹${en.rate||0}</div></div>
+      </div>
+      <div class="row-between mt8"><span class="amt mono">${fmtMoney(en.cost)}</span><span style="font-size:12px;color:var(--text-dim);">${fmtDate(en.date)} · ${esc(en.station||'')}</span></div>
+    </div>`
+  ).join('');
+}
+
+function boot(){
+  const id = qs('vehicle');
+  if(id){
+    $('#listView').classList.remove('active');
+    $('#detailView').classList.add('active');
+    renderDetail(id);
+  } else {
+    $('#detailView').classList.remove('active');
+    $('#listView').classList.add('active');
+    renderVehicleList();
+  }
+}
+boot();
+</script>
+</body>
+</html>

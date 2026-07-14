@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Vehicle Documents</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <section class="screen active">
+    <div class="topbar">
+      <div><h1>Documents</h1><div class="sub">Insurance, PUC, FC & reminders</div></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+
+    <div class="field" style="margin-bottom:16px;">
+      <label>Vehicle</label>
+      <select id="vehiclePicker"></select>
+    </div>
+
+    <div id="noVehicles" class="empty hide"><div class="ic">🚗</div>Add a vehicle first from Vehicle Details.</div>
+    <div id="docBody"></div>
+  </section>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
+    <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
+    <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
+    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/common.js"></script>
+<script>
+initPage('documents.html');
+const preselect = qs('vehicle');
+
+function docRow(label, key, docs){
+  const has = docs && docs[key];
+  return `<div class="list-row">
+    <div class="main"><div class="title">${label}</div><div class="meta">${has ? 'Uploaded' : 'Not uploaded'}</div></div>
+    <label class="btn secondary sm" style="cursor:pointer;">
+      ${has?'Replace':'Upload'}<input type="file" accept="image/*,.pdf" data-dockey="${key}" style="display:none;">
+    </label>
+  </div>`;
+}
+
+function renderDoc(vid){
+  const v = DB.vehicles.get(vid);
+  if(!v) return;
+  const isEV = v.fuelType === 'Electric (EV)';
+  v.documents = v.documents || {};
+
+  const insS = reminderStatus(v.insurance?.expiryDate, v.insurance?.reminderDays||30);
+  const pucS = reminderStatus(v.puc?.expiryDate, 15);
+  const fcS = reminderStatus(v.fc?.expiryDate, v.fc?.reminderDays||30);
+  const chip = (s) => `<span class="chip ${s.level}">${esc(s.label)}</span>`;
+
+  $('#docBody').innerHTML = `
+    <div class="card">
+      <div class="card-title">Status Overview <small><a href="maintenance.html?vehicle=${vid}" style="color:var(--amber);">Wheel/tyre/battery care →</a></small></div>
+      <div class="row-between" style="padding:9px 0;border-bottom:1px solid var(--border);"><span>Insurance</span>${chip(insS)}</div>
+      ${!isEV?`<div class="row-between" style="padding:9px 0;border-bottom:1px solid var(--border);"><span>Pollution Certificate (PUC)</span>${chip(pucS)}</div>`:''}
+      <div class="row-between" style="padding:9px 0;"><span>Fitness Certificate (FC)</span>${chip(fcS)}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Insurance</div>
+      <div class="grid2">
+        <div class="field"><label>Policy Number</label><input id="dInsPolicy" value="${esc(v.insurance?.policyNo||'')}"></div>
+        <div class="field"><label>Company</label><input id="dInsCo" value="${esc(v.insurance?.company||'')}"></div>
+        <div class="field"><label>Start Date</label><input id="dInsStart" type="date" value="${v.insurance?.startDate||''}"></div>
+        <div class="field"><label>Expiry Date</label><input id="dInsExp" type="date" value="${v.insurance?.expiryDate||''}"></div>
+        <div class="field"><label>Premium (₹)</label><input id="dInsPrem" type="number" value="${v.insurance?.premium||''}"></div>
+        <div class="field"><label>Remind Before (days)</label><input id="dInsRem" type="number" value="${v.insurance?.reminderDays||30}"></div>
+      </div>
+    </div>
+
+    ${!isEV ? `<div class="card">
+      <div class="card-title">Pollution Certificate (PUC)</div>
+      <div class="grid2">
+        <div class="field"><label>Issue Date</label><input id="dPucIssue" type="date" value="${v.puc?.issueDate||''}"></div>
+        <div class="field"><label>Expiry Date</label><input id="dPucExp" type="date" value="${v.puc?.expiryDate||''}"></div>
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">Fitness Certificate (FC)</div>
+      <div class="grid2">
+        <div class="field"><label>Issue Date</label><input id="dFcIssue" type="date" value="${v.fc?.issueDate||''}"></div>
+        <div class="field"><label>Expiry Date</label><input id="dFcExp" type="date" value="${v.fc?.expiryDate||''}"></div>
+        <div class="field"><label>Remind Before (days)</label><input id="dFcRem" type="number" value="${v.fc?.reminderDays||30}"></div>
+      </div>
+    </div>
+
+    <button class="btn" id="saveDocBtn">Save Insurance / PUC / FC</button>
+
+    <div class="card mt16">
+      <div class="card-title">Uploaded Documents</div>
+      ${docRow('Registration Certificate (RC)', 'rc', v.documents)}
+      ${docRow('Insurance Policy', 'insuranceCopy', v.documents)}
+      ${!isEV?docRow('PUC / Smoke Test Certificate', 'pucCopy', v.documents):''}
+      ${docRow('Fitness Certificate (FC)', 'fcCopy', v.documents)}
+      ${docRow('Service Invoices', 'serviceInvoices', v.documents)}
+      ${docRow('Fuel Receipts', 'fuelReceipts', v.documents)}
+      ${isEV?docRow('Charging Bills', 'chargingBills', v.documents):''}
+      ${docRow('Warranty Documents', 'warranty', v.documents)}
+      ${docRow('FASTag Recharge', 'fastagRecharge', v.documents)}
+      ${docRow('Other Vehicle Documents', 'other', v.documents)}
+    </div>
+  `;
+
+  $('#saveDocBtn').onclick = () => {
+    v.insurance = { policyNo:$('#dInsPolicy').value, company:$('#dInsCo').value, startDate:$('#dInsStart').value, expiryDate:$('#dInsExp').value, premium:Number($('#dInsPrem').value)||0, reminderDays:Number($('#dInsRem').value)||30 };
+    if(!isEV) v.puc = { issueDate:$('#dPucIssue').value, expiryDate:$('#dPucExp').value };
+    v.fc = { issueDate:$('#dFcIssue').value, expiryDate:$('#dFcExp').value, reminderDays:Number($('#dFcRem').value)||30 };
+    DB.vehicles.upsert(v);
+    toast('Saved'); renderDoc(vid);
+  };
+
+  $$('input[type=file][data-dockey]').forEach(inp => {
+    inp.onchange = async () => {
+      const dataUrl = await fileToDataUrl(inp);
+      if(!dataUrl) return;
+      v.documents = v.documents || {};
+      v.documents[inp.dataset.dockey] = dataUrl;
+      DB.vehicles.upsert(v);
+      toast('Document uploaded'); renderDoc(vid);
+    };
+  });
+}
+
+function boot(){
+  const vehicles = DB.vehicles.all();
+  if(!vehicles.length){ $('#noVehicles').classList.remove('hide'); $('#vehiclePicker').closest('.field').classList.add('hide'); return; }
+  const picker = $('#vehiclePicker');
+  picker.innerHTML = vehicleOptions(preselect || vehicles[0].id);
+  picker.onchange = () => renderDoc(picker.value);
+  renderDoc(picker.value);
+}
+boot();
+</script>
+</body>
+</html>

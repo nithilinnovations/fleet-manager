@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Fleet Manager — Owner Approvals</title>
+<meta name="theme-color" content="#14171C" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div id="app">
+  <section class="screen active">
+    <div class="topbar">
+      <button class="icon-btn" onclick="location.href='index.html'">←</button>
+      <div style="flex:1;text-align:center;"><h1 style="font-size:18px;">Owner Approvals</h1></div>
+      <button class="icon-btn" id="themeToggle">🌙</button>
+    </div>
+    <div id="approvalsBody"></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script src="js/common.js"></script>
+<script>
+initPage('none');
+function render(){
+  const list = DB.maint.all().filter(m=>m.approvalStatus);
+  $('#approvalsBody').innerHTML = list.length ? `<div class="card">${list.map(m=>{
+    const v = DB.vehicles.get(m.vehicleId);
+    return `<div class="list-row">
+      <div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${fmtMoney(m.cost)}</div></div>
+      <select data-id="${m.id}" class="approvalSelect" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;">
+        ${['Pending','Approved','Rejected','Completed'].map(s=>`<option ${m.approvalStatus===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('')}</div>` : `<div class="empty"><div class="ic">✅</div>No approval requests. Records above the ${fmtMoney(DB.settings.get().approvalThreshold)} threshold appear here automatically.</div>`;
+  $$('.approvalSelect').forEach(sel => sel.onchange = () => {
+    const m = DB.maint.all().find(x=>x.id===sel.dataset.id); if(!m) return;
+    m.approvalStatus = sel.value; DB.maint.update(m); toast('Status updated');
+  });
+}
+render();
+</script>
+</body>
+</html>
