@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000/api/vehicles";
+const API_URL = "https://fleet-manager-o3ma.onrender.com/api/vehicles";
 
 // Add Vehicle
 async function addVehicle(vehicle) {
