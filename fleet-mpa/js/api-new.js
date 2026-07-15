@@ -47,10 +47,3 @@ async function getVehicle(id) {
   return await res.json();
 }
 
-async function deleteVehicle(id) {
-  const res = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE"
-  });
-
-  return await res.json();
-}
