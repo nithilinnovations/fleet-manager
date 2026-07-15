@@ -371,3 +371,45 @@ button, input, select, textarea{ font-family:inherit; }
     }
 
 }
+/* Fuel History Card */
+.fuel-history-card{
+    border-radius:16px;
+    padding:18px;
+    margin-bottom:16px;
+    border:1px solid rgba(255,255,255,.08);
+    transition:.2s ease;
+}
+
+.fuel-history-card:hover{
+    transform:translateY(-2px);
+}
+
+.fuel-history-card .title{
+    font-size:20px;
+    font-weight:700;
+}
+
+.fuel-history-card .mono{
+    font-size:15px;
+}
+
+.fuel-history-card .amt{
+    font-size:24px;
+    font-weight:700;
+    color:#22c55e;
+}
+
+.fuel-history-card .chip{
+    padding:6px 12px;
+    border-radius:20px;
+}
+
+.fuel-history-card .grid2{
+    margin-top:12px;
+    margin-bottom:12px;
+}
+
+.fuel-history-card .row-between:last-child{
+    border-top:1px solid rgba(255,255,255,.08);
+    padding-top:12px;
+}
