@@ -252,8 +252,21 @@ function renderEvForm(v){
   };
 }
 
-function renderEntries(v, isEV){
-  const entries = isEV ? DB.ev.byVehicle(v.id).slice().reverse() : DB.fuel.byVehicle(v.id).slice().reverse();
+async function renderEntries(v, isEV){
+ if (isEV) {
+    $('#entryList').innerHTML =
+        '<div class="empty"><div class="ic">🔋</div>EV history coming soon.</div>';
+    return;
+}
+
+const res = await getFuelHistory(v.id);
+
+if (!res.success) {
+    toast("Failed to load history");
+    return;
+}
+
+const entries = res.data.slice().reverse();
   if(!entries.length){ $('#entryList').innerHTML = `<div class="empty" style="padding:16px;"><div class="ic">${isEV?'🔋':'⛽'}</div>No entries yet for this vehicle.</div>`; return; }
   $('#entryList').innerHTML = entries.map(en => isEV ? `
     <div class="card">
