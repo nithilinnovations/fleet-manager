@@ -1,28 +1,21 @@
+const fs = require("fs");
 const { initializeApp, cert, getApps } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 
-let app;
+let serviceAccount;
 
-if (getApps().length === 0) {
-  if (process.env.FIREBASE_PROJECT_ID) {
-    app = initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      }),
-    });
-  } else {
-    const serviceAccount = require("../firebase-key.json");
-
-    app = initializeApp({
-      credential: cert(serviceAccount),
-    });
-  }
+if (fs.existsSync("/etc/secrets/firebase-key.json")) {
+  serviceAccount = require("/etc/secrets/firebase-key.json");
 } else {
-  app = getApps()[0];
+  serviceAccount = require("../firebase-key.json");
 }
 
-const db = getFirestore(app);
+if (!getApps().length) {
+  initializeApp({
+    credential: cert(serviceAccount),
+  });
+}
+
+const db = getFirestore();
 
 module.exports = db;
