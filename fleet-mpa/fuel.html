@@ -47,31 +47,70 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/common.js"></script>
+<script src="js/fuel-api.js"></script>
+<script src="js/fuel-entry-api.js"></script>
 <script>
 initPage('fuel.html');
 
 /* ============================== LIST VIEW ============================== */
-function renderVehicleList(){
-  const vehicles = DB.vehicles.all();
-  $('#vehicleList').innerHTML = vehicles.length ? vehicles.map(v=>{
-    const isEV = v.fuelType === 'Electric (EV)';
-    const stat = isEV ? evEfficiencyStats(v.id) : mileageStats(v.id);
-    const statLine = stat ? `Last: <b class="mono">${stat.last.toFixed(1)} ${isEV?'km/kWh':'km/L'}</b>` : 'No entries yet';
-    const thumb = v.image ? `<img src="${v.image}" alt="">` : (isEV ? '🔋' : '⛽');
-    return `<div class="card"><div class="vehicle-card" style="cursor:pointer;" onclick="location.href='fuel.html?vehicle=${v.id}'">
-      <div class="vehicle-thumb">${thumb}</div>
-      <div class="main" style="flex:1;">
-        <div class="title">${esc(v.name)}</div>
-        <div class="meta">${esc(v.regNo)} · ${statLine}</div>
+async function renderVehicleList() {
+
+  const res = await getVehicles();
+
+  if (!res.success) {
+    toast("Failed to load vehicles");
+    return;
+  }
+
+  const vehicles = res.data;
+
+  $('#vehicleList').innerHTML = vehicles.length
+    ? vehicles.map(v => {
+
+        const isEV = v.fuelType === "Electric (EV)";
+
+        return `
+        <div class="card">
+          <div class="vehicle-card"
+               style="cursor:pointer;"
+               onclick="location.href='fuel.html?vehicle=${v.id}'">
+
+            <div class="vehicle-thumb">
+              ${isEV ? "🔋" : "⛽"}
+            </div>
+
+            <div class="main" style="flex:1;">
+              <div class="title">${v.name}</div>
+              <div class="meta">${v.regNo}</div>
+            </div>
+
+            <span class="chip ${isEV ? "teal" : "neutral"}">
+              ${isEV ? "EV" : v.fuelType}
+            </span>
+
+          </div>
+        </div>
+        `;
+
+      }).join("")
+
+    : `
+      <div class="empty">
+        <div class="ic">⛽</div>
+        No vehicles found.
       </div>
-      <span class="chip ${isEV?'teal':'neutral'}">${isEV?'EV':esc(v.fuelType)}</span>
-    </div></div>`;
-  }).join('') : `<div class="empty"><div class="ic">⛽</div>No vehicles yet.<br>Add a vehicle first from Vehicles.<button class="btn" onclick="location.href='vehicles.html'">Go to Vehicles</button></div>`;
+    `;
+}
+/* ============================== DETAIL VIEW ============================== */
+async function renderDetail(vid){
+  const res = await getVehicle(vid);
+
+if (!res.success) {
+  location.href = "fuel.html";
+  return;
 }
 
-/* ============================== DETAIL VIEW ============================== */
-function renderDetail(vid){
-  const v = DB.vehicles.get(vid);
+const v = res.data;
   if(!v){ location.href = 'fuel.html'; return; }
   const isEV = v.fuelType === 'Electric (EV)';
   $('#vdName').textContent = v.name;
@@ -122,19 +161,45 @@ function renderFuelForm(v){
   ['fuStart','fuEnd','fuRate','fuLitres'].forEach(id => $('#'+id).oninput = recalc);
   recalc();
 
-  $('#saveFuelBtn').onclick = () => {
-    const start = Number($('#fuStart').value), end = Number($('#fuEnd').value);
-    const litres = Number($('#fuLitres').value), rate = Number($('#fuRate').value);
-    if(end <= start){ toast('Ending odometer must be greater than starting'); return; }
-    if(!litres){ toast('Enter fuel filled (litres)'); return; }
-    const km = end - start;
-    const f = { id:uid(), date:$('#fuDate').value, vehicleId:v.id, startOdo:start, endOdo:end, distance:km,
-      rate, litres, cost: Math.round(rate*litres), mileage: Number((km/litres).toFixed(2)), station:$('#fuStation').value };
-    DB.fuel.add(f);
-    if(end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
-    toast('Fuel entry saved');
-    renderDetail(v.id);
-  };
+  $('#saveFuelBtn').onclick = async () => {
+
+    const start = Number($('#fuStart').value);
+    const end = Number($('#fuEnd').value);
+    const litres = Number($('#fuLitres').value);
+    const rate = Number($('#fuRate').value);
+
+    if (end <= start) {
+        toast("Ending odometer must be greater than starting");
+        return;
+    }
+
+    if (!litres) {
+        toast("Enter fuel filled (litres)");
+        return;
+    }
+
+    const fuelData = {
+        vehicleId: v.id,
+        date: $('#fuDate').value,
+        startOdo: start,
+        endOdo: end,
+        distance: end - start,
+        litres,
+        rate,
+        cost: Math.round(rate * litres),
+        mileage: Number(((end - start) / litres).toFixed(2)),
+        station: $('#fuStation').value
+    };
+
+    const res = await addFuelEntry(fuelData);
+
+    if (res.success) {
+        toast("Fuel entry saved successfully");
+    } else {
+        toast("Failed to save fuel entry");
+    }
+
+};
 }
 
 function renderEvForm(v){
@@ -223,6 +288,7 @@ function boot(){
   }
 }
 boot();
+renderVehicleList();
 </script>
 </body>
 </html>

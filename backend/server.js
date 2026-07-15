@@ -5,12 +5,15 @@ require("dotenv").config();
 const db = require("./config/firebase");
 const vehicleRoutes = require("./routes/vehicleRoutes");
 
+const fuelRoutes = require("./routes/fuelRoutes");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
 app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/fuel", fuelRoutes);
 
 // Firestore test
 
