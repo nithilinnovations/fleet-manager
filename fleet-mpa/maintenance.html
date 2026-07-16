@@ -180,8 +180,16 @@ $('#mVehicle').innerHTML = vehicles.map(v => `
 };
   vSel.onchange = applyOdo; applyOdo();
 
-  const renderRecent = () => {
-    const list = DB.maint.all().slice(0,8);
+  const renderRecent = async() => {
+    const res = await getMaintenance();
+
+if (!res.success) {
+    $('#recentEntryList').innerHTML =
+        `<div class="empty" style="padding:10px;">Failed to load records.</div>`;
+    return;
+}
+
+const list = res.data.slice(0,8);
     $('#recentEntryList').innerHTML = list.length ? list.map(m=>{
       const v = DB.vehicles.get(m.vehicleId);
       const statusChip = m.approvalStatus ? `<span class="chip ${m.approvalStatus==='Approved'||m.approvalStatus==='Completed'?'green':m.approvalStatus==='Rejected'?'red':'orange'}">${m.approvalStatus}</span>` : '';
