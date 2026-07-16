@@ -24,8 +24,7 @@
       <button data-t="dashboard" class="active">📊 Dashboard</button>
       <button data-t="entry">➕ Service Entry</button>
       <button data-t="schedule">🗓 Schedule</button>
-      <button data-t="reports">📑 Reports</button>
-      <button data-t="approvals">✅ Approvals</button>
+      
     </div>
 
     <div id="tabBody"></div>
@@ -42,6 +41,8 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/common.js"></script>
+<script src="js/vehicle-api.js"></script>
+<script src="js/maintenance-api.js"></script>
 <script>
 initPage('maintenance.html');
 let activeTab = 'dashboard';
@@ -59,8 +60,7 @@ function renderTab(){
   if(activeTab==='dashboard') renderDashboardTab();
   else if(activeTab==='entry') renderEntryTab();
   else if(activeTab==='schedule') renderScheduleTab();
-  else if(activeTab==='reports') renderReportsTab();
-  else if(activeTab==='approvals') renderApprovalsTab();
+  
 }
 
 /* ============================== DASHBOARD TAB ============================== */
@@ -92,46 +92,92 @@ function renderDashboardTab(){
   }).join('');
 
   $('#tabBody').innerHTML = `
-    <div class="card"><div class="card-title">Overdue Services <small>${overdue.length}</small></div>
-      ${overdue.length ? overdue.map(scheduleLine).join('') : `<div class="empty" style="padding:10px;"><div class="ic">✅</div>Nothing overdue.</div>`}</div>
+    
     <div class="card"><div class="card-title">Upcoming Services <small>${upcoming.length}</small></div>
       ${upcoming.length ? upcoming.map(scheduleLine).join('') : `<div class="empty" style="padding:10px;">Nothing due soon.</div>`}</div>
     <div class="card"><div class="card-title">Recently Completed</div>
       ${recentCompleted.length ? recentCompleted.map(m=>{ const v=DB.vehicles.get(m.vehicleId);
         return `<div class="list-row"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${m.odometer} km</div></div><div class="amt">${fmtMoney(m.cost)}</div></div>`; }).join('')
         : `<div class="empty" style="padding:10px;">No service records yet.</div>`}</div>
-    <div class="card"><div class="card-title">Vehicle Health Summary</div>
-      ${health || `<div class="empty" style="padding:10px;">Add a vehicle to see health.</div>`}</div>
+   
   `;
 }
 
 /* ============================== SERVICE ENTRY TAB ============================== */
-function renderEntryTab(){
-  if(!DB.vehicles.all().length){
-    $('#tabBody').innerHTML = `<div class="empty"><div class="ic">🔧</div>Add a vehicle first from Vehicles.</div>`;
-    return;
-  }
+async function renderEntryTab(){
+  
   $('#tabBody').innerHTML = `
     <div class="card">
       <div class="card-title">Add Maintenance Record</div>
-      <div class="field"><label>Vehicle</label><select id="mVehicle">${vehicleOptions(preselectVehicle)}</select></div>
+      <div class="field">
+    <label>Vehicle</label>
+    <select id="mVehicle"></select>
+</div>
       <div class="field"><label>Maintenance Category</label><select id="mCat"></select></div>
       <div class="field"><label>Date</label><input id="mDate" type="date" value="${todayISO()}"></div>
-      <div class="field"><label>Odometer (km)</label><input id="mOdo" type="number"></div>
+      <div class="grid2">
+
+  <div class="field">
+      <label>Starting Odometer (km)</label>
+      <input id="mStartOdo" type="number">
+  </div>
+
+  <div class="field">
+      <label>Ending Odometer (km)</label>
+      <input id="mEndOdo" type="number">
+  </div>
+
+</div>
       <div class="field"><label>Vendor</label><input id="mVendor"></div>
       <div class="field"><label>Cost (₹)</label><input id="mCost" type="number"></div>
-      <div class="field"><label>Invoice Upload (optional)</label><input id="mInvoice" type="file" accept="image/*,.pdf"></div>
+      
       <div class="field"><label>Remarks</label><textarea id="mRemarks"></textarea></div>
       <button class="btn mt8" id="saveMaintBtn">Save Maintenance Record</button>
     </div>
     <div class="card"><div class="card-title">Recent Entries</div><div id="recentEntryList"></div></div>
   `;
+  const vehicleRes = await getVehicles();
+
+if (!vehicleRes.success) {
+    toast("Failed to load vehicles");
+    return;
+}
+
+const vehicles = vehicleRes.data;
+
+if (vehicles.length === 0) {
+    $('#tabBody').innerHTML = `
+        <div class="empty">
+            <div class="ic">🚗</div>
+            No vehicles found.
+        </div>
+    `;
+    return;
+}
+
+$('#mVehicle').innerHTML = vehicles.map(v => `
+    <option value="${v.id}">
+        ${v.name} (${v.regNo})
+    </option>
+`).join('');
+
   const vSel = $('#mVehicle'), catSel = $('#mCat');
   const refreshCategories = () => {
-    const v = DB.vehicles.get(vSel.value);
-    catSel.innerHTML = categoriesFor(v).map(c=>`<option>${c}</option>`).join('');
-  };
-  const applyOdo = () => { const v = DB.vehicles.get(vSel.value); if(v) $('#mOdo').value = v.odometer||0; refreshCategories(); };
+
+    const v = vehicles.find(x => x.id === vSel.value);
+
+    if (!v) return;
+
+    catSel.innerHTML = categoriesFor(v)
+        .map(c => `<option>${c}</option>`)
+        .join('');
+};
+  const applyOdo = () => {
+    $('#mStartOdo').value = "";
+    $('#mEndOdo').value = "";
+
+    refreshCategories();
+};
   vSel.onchange = applyOdo; applyOdo();
 
   const renderRecent = () => {
@@ -145,22 +191,47 @@ function renderEntryTab(){
   };
   renderRecent();
 
-  $('#saveMaintBtn').onclick = async () => {
-    const cost = Number($('#mCost').value)||0;
-    const threshold = DB.settings.get().approvalThreshold || 5000;
-    const invoice = await fileToDataUrl($('#mInvoice'));
-    const category = catSel.value, date = $('#mDate').value, odo = Number($('#mOdo').value)||0;
-    const m = { id:uid(), category, date, vehicleId:vSel.value, odometer:odo, vendor:$('#mVendor').value, cost, invoice, remarks:$('#mRemarks').value, approvalStatus: cost >= threshold ? 'Pending' : null };
-    DB.maint.add(m);
-    const v = DB.vehicles.get(vSel.value);
-    if(v){
-      if(odo > (v.odometer||0)) v.odometer = odo;
-      recordServiceCompletion(v, category, date, odo);
-      DB.vehicles.upsert(v);
+  $('#saveMaintBtn').onclick = async() => {
+
+    const cost = Number($('#mCost').value) || 0;
+
+    const category = catSel.value;
+    const date = $('#mDate').value;
+
+    const startOdo = Number($('#mStartOdo').value) || 0;
+    const endOdo = Number($('#mEndOdo').value) || 0;
+
+    if (endOdo < startOdo) {
+        toast("Ending Odometer cannot be less than Starting Odometer");
+        return;
     }
-    toast(cost>=threshold ? 'Saved — sent for owner approval' : 'Maintenance record saved · schedule updated');
-    renderEntryTab();
-  };
+
+    const m = {
+        id: uid(),
+        category,
+        date,
+        vehicleId: vSel.value,
+
+        startOdometer: startOdo,
+        endOdometer: endOdo,
+        odometer: endOdo,
+
+        vendor: $('#mVendor').value,
+        cost,
+        remarks: $('#mRemarks').value
+    };
+
+    const result = await addMaintenance(m);
+
+if (!result.success) {
+    toast("Failed to save maintenance");
+    return;
+}
+
+toast("Maintenance record saved");
+
+renderEntryTab();
+};
 }
 
 /* ============================== SCHEDULE TAB ============================== */

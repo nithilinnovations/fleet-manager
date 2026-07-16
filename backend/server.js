@@ -6,6 +6,7 @@ const db = require("./config/firebase");
 const vehicleRoutes = require("./routes/vehicleRoutes");
 
 const fuelRoutes = require("./routes/fuelRoutes");
+const maintenanceRoutes = require("./routes/maintenanceRoutes");
 
 const app = express();
 
@@ -14,7 +15,10 @@ app.use(express.json());
 
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/fuel", fuelRoutes);
-
+app.use("/api/maintenance", maintenanceRoutes);
+app.get("/api/test123", (req, res) => {
+  res.send("TEST OK");
+});
 // Firestore test
 
 app.get("/", (req, res) => {
