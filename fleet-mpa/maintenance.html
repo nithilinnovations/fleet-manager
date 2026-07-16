@@ -24,7 +24,7 @@
       <button data-t="dashboard" class="active">📊 Dashboard</button>
       <button data-t="entry">➕ Service Entry</button>
       <button data-t="schedule">🗓 Schedule</button>
-      
+      <button data-t="reports">📑 Reports</button>
     </div>
 
     <div id="tabBody"></div>
@@ -60,7 +60,7 @@ function renderTab(){
   if(activeTab==='dashboard') renderDashboardTab();
   else if(activeTab==='entry') renderEntryTab();
   else if(activeTab==='schedule') renderScheduleTab();
-  
+  else if(activeTab==='reports') renderReportsTab();
 }
 
 /* ============================== DASHBOARD TAB ============================== */
