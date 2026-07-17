@@ -43,6 +43,7 @@
 <script src="js/common.js"></script>
 <script src="js/vehicle-api.js"></script>
 <script src="js/maintenance-api.js"></script>
+<script src="js/schedule-api.js"></script>
 <script>
 initPage('maintenance.html');
 let activeTab = 'dashboard';
@@ -243,68 +244,261 @@ renderEntryTab();
 }
 
 /* ============================== SCHEDULE TAB ============================== */
-function renderScheduleTab(){
-  const vehicles = DB.vehicles.all();
-  if(!vehicles.length){ $('#tabBody').innerHTML = `<div class="empty"><div class="ic">🗓</div>Add a vehicle first from Vehicles.</div>`; return; }
-  $('#tabBody').innerHTML = `
-    <div class="field"><label>Vehicle</label><select id="schVehicle">${vehicleOptions(preselectVehicle)}</select></div>
-    <div class="card"><div id="schRows"></div></div>
-  `;
-  const vSel = $('#schVehicle');
-  const draw = () => {
-    const v = DB.vehicles.get(vSel.value);
-    const rows = categoriesFor(v).map(cat => {
-      const st = computeScheduleStatus(v, cat);
-      return `<div class="sched-row">
-        <div class="sched-row-head" data-cat="${esc(cat)}">
-          <div><div class="name">${esc(cat)}</div>
-            <div class="sched-stat">Last: ${st.lastDate?fmtDate(st.lastDate):'—'}${st.lastOdo?' · '+st.lastOdo+' km':''}</div></div>
-          <span class="chip ${scheduleStatusLevel(st.status)}">${st.status}${st.remainingKm!=null?' · '+st.remainingKm+'km':''}${st.remainingDays!=null?' · '+st.remainingDays+'d':''}</span>
+async function renderScheduleTab() {
+
+    const vehicleRes = await getVehicles();
+
+    if (!vehicleRes.success) {
+        toast("Failed to load vehicles");
+        return;
+    }
+
+    const vehicles = vehicleRes.data;
+    const scheduleRes = await getSchedule();
+const schedules = scheduleRes.success ? scheduleRes.data : [];
+
+    if (!vehicles.length) {
+        $("#tabBody").innerHTML = `
+            <div class="empty">
+                <div class="ic">🗓</div>
+                Add a vehicle first from Vehicles.
+            </div>
+        `;
+        return;
+    }
+
+    $("#tabBody").innerHTML = `
+        <div class="field">
+            <label>Vehicle</label>
+
+            <select id="schVehicle">
+                ${vehicles.map(v => `
+                    <option value="${v.id}">
+                        ${v.name} (${v.regNo})
+                    </option>
+                `).join("")}
+            </select>
         </div>
-        <div class="sched-row-body" id="body-${btoa(encodeURIComponent(cat)).replace(/=/g,'')}"></div>
-      </div>`;
-    }).join('');
-    $('#schRows').innerHTML = rows;
-    $$('.sched-row-head').forEach(h => h.onclick = () => toggleSchedRow(vSel.value, h.dataset.cat));
-  };
-  vSel.onchange = draw; draw();
+
+        <div class="card">
+            <div id="schRows"></div>
+        </div>
+    `;
+
+    const vSel = $("#schVehicle");
+
+    function draw() {
+
+        const v = vehicles.find(x => x.id === vSel.value);
+
+        if (!v) return;
+
+        const rows = categoriesFor(v).map(cat => {
+
+            const record = schedules.find(s =>
+    s.vehicleId === v.id &&
+    s.category === cat
+);
+
+const def = DEFAULT_INTERVALS[cat] || { km: 0, days: 0 };
+
+const st = {
+    lastDate: record?.lastDate || "",
+    lastOdo: record?.lastOdo || "",
+    intervalKm: record?.intervalKm || def.km,
+    intervalDays: record?.intervalDays || def.days,
+    status: record ? "On Time" : "Not Set",
+    remainingKm: null,
+    remainingDays: null
+};
+
+            return `
+                <div class="sched-row">
+
+                    <div class="sched-row-head"
+                         data-cat="${esc(cat)}">
+
+                        <div>
+
+                            <div class="name">
+                                ${esc(cat)}
+                            </div>
+
+                            <div class="sched-stat">
+                                Last:
+                                ${st.lastDate ? fmtDate(st.lastDate) : "—"}
+                                ${st.lastOdo ? " · " + st.lastOdo + " km" : ""}
+                            </div>
+
+                        </div>
+
+                        <span class="chip ${scheduleStatusLevel(st.status)}">
+
+                            ${st.status}
+
+                            ${st.remainingKm != null ? " · " + st.remainingKm + " km" : ""}
+
+                            ${st.remainingDays != null ? " · " + st.remainingDays + " d" : ""}
+
+                        </span>
+
+                    </div>
+
+                    <div class="sched-row-body"
+                         id="body-${btoa(encodeURIComponent(cat)).replace(/=/g,"")}">
+                    </div>
+
+                </div>
+            `;
+
+        }).join("");
+
+        $("#schRows").innerHTML = rows;
+
+        $$(".sched-row-head").forEach(h => {
+
+            h.onclick = () => toggleSchedRow(
+                vehicles,
+                vSel.value,
+                h.dataset.cat
+            );
+
+        });
+
+    }
+
+    vSel.onchange = draw;
+
+    draw();
+
+}
+function schedBodyId(cat) {
+    return "body-" + btoa(encodeURIComponent(cat)).replace(/=/g, "");
 }
 
-function schedBodyId(cat){ return 'body-' + btoa(encodeURIComponent(cat)).replace(/=/g,''); }
+async function toggleSchedRow(vehicles, vid, cat) {
 
-function toggleSchedRow(vid, cat){
-  const body = document.getElementById(schedBodyId(cat));
-  const isOpen = body.classList.contains('open');
-  $$('.sched-row-body.open').forEach(b=>b.classList.remove('open'));
-  if(isOpen) return;
-  const v = DB.vehicles.get(vid);
-  const sch = (v.schedule && v.schedule[cat]) || {};
-  const def = DEFAULT_INTERVALS[cat] || {km:0, days:0};
-  body.innerHTML = `
-    <div class="grid2">
-      <div class="field"><label>Last Service Date</label><input type="date" id="sLastDate" value="${sch.lastDate||''}"></div>
-      <div class="field"><label>Last Service KM</label><input type="number" id="sLastOdo" value="${sch.lastOdo||''}"></div>
-      <div class="field"><label>Interval (km)</label><input type="number" id="sIntKm" value="${sch.intervalKm||def.km||''}" placeholder="e.g. ${def.km||'—'}"></div>
-      <div class="field"><label>Interval (days)</label><input type="number" id="sIntDays" value="${sch.intervalDays||def.days||''}" placeholder="e.g. ${def.days||'—'}"></div>
-    </div>
-    <button class="btn secondary sm" id="sSaveBtn">Save Schedule</button>
-  `;
-  body.classList.add('open');
-  $('#sSaveBtn', body).onclick = () => {
-    const lastDate = $('#sLastDate', body).value, lastOdo = Number($('#sLastOdo', body).value)||undefined;
-    const intervalKm = Number($('#sIntKm', body).value)||0, intervalDays = Number($('#sIntDays', body).value)||0;
-    v.schedule = v.schedule || {};
-    v.schedule[cat] = {
-      lastDate: lastDate||undefined, lastOdo,
-      intervalKm, intervalDays,
-      nextDueKm: (lastOdo && intervalKm) ? lastOdo+intervalKm : undefined,
-      nextDueDate: (lastDate && intervalDays) ? addDays(lastDate, intervalDays) : undefined
+    const body = document.getElementById(schedBodyId(cat));
+
+    const isOpen = body.classList.contains("open");
+
+    $$(".sched-row-body.open").forEach(b => b.classList.remove("open"));
+
+    if (isOpen) return;
+
+    const v = vehicles.find(x => x.id === vid);
+
+    if (!v) return;
+
+    let sch = {};
+
+const scheduleRes = await getSchedule();
+
+if (scheduleRes.success) {
+
+    const record = scheduleRes.data.find(s =>
+        s.vehicleId === vid &&
+        s.category === cat
+    );
+console.log("Record Found:", record);
+    if (record) {
+
+        sch = {
+            lastDate: record.lastDate || "",
+            lastOdo: record.lastOdo || "",
+            intervalKm: record.intervalKm || "",
+            intervalDays: record.intervalDays || ""
+        };
+
+    }
+
+}
+
+    const def = DEFAULT_INTERVALS[cat] || {
+        km: 0,
+        days: 0
     };
-    DB.vehicles.upsert(v);
-    toast('Schedule saved'); renderScheduleTab();
-  };
-}
 
+    body.innerHTML = `
+        <div class="grid2">
+
+            <div class="field">
+                <label>Last Service Date</label>
+                <input
+                    type="date"
+                    id="sLastDate"
+                    value="${sch.lastDate || ""}">
+            </div>
+
+            <div class="field">
+                <label>Last Service KM</label>
+                <input
+                    type="number"
+                    id="sLastOdo"
+                    value="${sch.lastOdo || ""}">
+            </div>
+
+            <div class="field">
+                <label>Interval (km)</label>
+                <input
+                    type="number"
+                    id="sIntKm"
+                    value="${sch.intervalKm || def.km}">
+            </div>
+
+            <div class="field">
+                <label>Interval (days)</label>
+                <input
+                    type="number"
+                    id="sIntDays"
+                    value="${sch.intervalDays || def.days}">
+            </div>
+
+        </div>
+
+        <button class="btn secondary sm" id="sSaveBtn">
+            Save Schedule
+        </button>
+    `;
+
+    body.classList.add("open");
+    console.log("Last Date =", document.getElementById("sLastDate").value);
+console.log("Last Odo =", document.getElementById("sLastOdo").value);
+console.log("Interval KM =", document.getElementById("sIntKm").value);
+console.log("Interval Days =", document.getElementById("sIntDays").value);
+    $("#sSaveBtn", body).onclick = async () => {
+
+    const data = {
+
+        vehicleId: vid,
+        category: cat,
+
+        lastDate: $("#sLastDate", body).value,
+
+        lastOdo: Number($("#sLastOdo", body).value) || 0,
+
+        intervalKm: Number($("#sIntKm", body).value) || 0,
+
+        intervalDays: Number($("#sIntDays", body).value) || 0
+
+    };
+
+    const res = await addSchedule(data);
+
+    if (res.success) {
+
+        toast("Schedule Saved");
+
+        renderScheduleTab();
+
+    } else {
+
+        toast("Failed to Save");
+
+    }
+
+};
+}
 /* ============================== REPORTS TAB ============================== */
 const REPORTS = [
   { id:'vehicle', label:'Vehicle-wise Maintenance', gen: () => {
