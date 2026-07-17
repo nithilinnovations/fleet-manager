@@ -65,15 +65,22 @@ function renderTab(){
 }
 
 /* ============================== DASHBOARD TAB ============================== */
-function renderDashboardTab(){
-  const vehicles = DB.vehicles.all();
+async function renderDashboardTab(){
+ const vehicleRes = await getVehicles();
+const vehicles = vehicleRes.data;
+
+const maintenanceRes = await getMaintenance();
+const maintData = maintenanceRes.data;
+console.log("Maintenance:", maintData);
   let upcoming = [], overdue = [];
   vehicles.forEach(v => categoriesFor(v).forEach(cat => {
     const st = computeScheduleStatus(v, cat);
     if(st.status==='Overdue') overdue.push({v, cat, st});
     else if(st.status==='Due Soon') upcoming.push({v, cat, st});
   }));
-  const recentCompleted = DB.maint.all().slice(0,6);
+  const recentCompleted = maintData
+    .sort((a,b)=>new Date(b.date)-new Date(a.date))
+    .slice(0,6);
 
   const scheduleLine = (item) => {
     const bits = [];
@@ -192,7 +199,7 @@ if (!res.success) {
 
 const list = res.data.slice(0,8);
     $('#recentEntryList').innerHTML = list.length ? list.map(m=>{
-      const v = DB.vehicles.get(m.vehicleId);
+      const v = vehicles.find(v => v.id === m.vehicleId);
       const statusChip = m.approvalStatus ? `<span class="chip ${m.approvalStatus==='Approved'||m.approvalStatus==='Completed'?'green':m.approvalStatus==='Rejected'?'red':'orange'}">${m.approvalStatus}</span>` : '';
       return `<div class="list-row"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${m.odometer} km · ${esc(m.vendor||'')}</div></div>
         <div style="text-align:right;">${statusChip}<div class="amt">${fmtMoney(m.cost)}</div></div></div>`;
@@ -500,64 +507,105 @@ console.log("Interval Days =", document.getElementById("sIntDays").value);
 };
 }
 /* ============================== REPORTS TAB ============================== */
+let vehicles = [];
+let maintData = [];
+let schedules = [];
 const REPORTS = [
   { id:'vehicle', label:'Vehicle-wise Maintenance', gen: () => {
-    const rows = DB.vehicles.all().map(v=>{ const recs = DB.maint.byVehicle(v.id);
-      return [v.name, v.regNo, recs.length, fmtMoney(recs.reduce((s,r)=>s+(Number(r.cost)||0),0)), recs[0]?fmtDate(recs[0].date):'—']; });
+    const rows = vehicles.map(v => {
+
+    const recs = maintData.filter(m => m.vehicleId === v.id);
+
+    return [
+        v.name,
+        v.regNo,
+        recs.length,
+        fmtMoney(recs.reduce((s, r) => s + (Number(r.cost) || 0), 0)),
+        recs.length ? fmtDate(recs[0].date) : "—"
+    ];
+
+});
     return { columns:['Vehicle','Reg No','Records','Total Cost','Last Service'], rows }; } },
   { id:'monthly', label:'Monthly Maintenance', gen: () => {
-    const byMonth = {}; DB.maint.all().forEach(m=>{ const k=m.date.slice(0,7); byMonth[k]=byMonth[k]||{count:0,cost:0}; byMonth[k].count++; byMonth[k].cost+=Number(m.cost)||0; });
+    const byMonth = {}; maintData.forEach(m=>{ const k=m.date.slice(0,7); byMonth[k]=byMonth[k]||{count:0,cost:0}; byMonth[k].count++; byMonth[k].cost+=Number(m.cost)||0; });
     const rows = Object.keys(byMonth).sort().reverse().map(k=>[k, byMonth[k].count, fmtMoney(byMonth[k].cost)]);
     return { columns:['Month','Records','Total Cost'], rows }; } },
   { id:'history', label:'Service History', gen: () => {
-    const rows = DB.maint.all().map(m=>{ const v=DB.vehicles.get(m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.category, m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
+    const rows = maintData.map(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.category, m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
     return { columns:['Date','Vehicle','Category','Odometer','Vendor','Cost'], rows }; } },
   { id:'cost', label:'Cost Analysis (by Category)', gen: () => {
-    const byCat = {}; DB.maint.all().forEach(m=>{ byCat[m.category]=(byCat[m.category]||0)+(Number(m.cost)||0); });
+    const byCat = {}; maintData.forEach(m=>{ byCat[m.category]=(byCat[m.category]||0)+(Number(m.cost)||0); });
     const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k, fmtMoney(v)]);
     return { columns:['Category','Total Cost'], rows }; } },
   { id:'upcoming', label:'Upcoming Service', gen: () => {
     const rows = [];
-    DB.vehicles.all().forEach(v => categoriesFor(v).forEach(cat=>{ const st=computeScheduleStatus(v,cat);
+    vehicles.forEach(v => categoriesFor(v).forEach(cat=>{ const st=computeScheduleStatus(v,cat);
       if(st.status==='Due Soon') rows.push([v.name, cat, st.nextDueDate?fmtDate(st.nextDueDate):'—', st.nextDueKm||'—', st.remainingKm ?? '—', st.remainingDays ?? '—']); }));
     return { columns:['Vehicle','Category','Next Due Date','Next Due KM','KM Left','Days Left'], rows }; } },
   { id:'overdue', label:'Overdue Service', gen: () => {
     const rows = [];
-    DB.vehicles.all().forEach(v => categoriesFor(v).forEach(cat=>{ const st=computeScheduleStatus(v,cat);
+    vehicles.forEach(v => categoriesFor(v).forEach(cat=>{ const st=computeScheduleStatus(v,cat);
       if(st.status==='Overdue') rows.push([v.name, cat, st.nextDueDate?fmtDate(st.nextDueDate):'—', st.nextDueKm||'—', st.remainingKm ?? '—', st.remainingDays ?? '—']); }));
     return { columns:['Vehicle','Category','Was Due Date','Was Due KM','KM Overdue','Days Overdue'], rows }; } },
   { id:'oil', label:'Engine Oil History', gen: () => {
-    const rows = DB.maint.all().filter(m=>m.category==='Engine Oil').map(m=>{ const v=DB.vehicles.get(m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
+    const rows = maintData.filter(m=>m.category==='Engine Oil').map(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
     return { columns:['Date','Vehicle','Odometer','Vendor','Cost'], rows }; } },
   { id:'tyres', label:'Tyre Replacement History', gen: () => {
-    const rows = DB.maint.all().filter(m=>m.category==='Tyres').map(m=>{ const v=DB.vehicles.get(m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
+    const rows = maintData.filter(m=>m.category==='Tyres').map(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
     return { columns:['Date','Vehicle','Odometer','Vendor','Cost'], rows }; } },
   { id:'battery', label:'Battery Replacement History', gen: () => {
-    const rows = DB.maint.all().filter(m=>m.category==='Battery').map(m=>{ const v=DB.vehicles.get(m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
+    const rows = maintData.filter(m=>m.category==='Battery').map(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
     return { columns:['Date','Vehicle','Odometer','Vendor','Cost'], rows }; } },
   { id:'insurance', label:'Insurance Renewal', gen: () => {
-    const rows = DB.vehicles.all().map(v=>{ const s=reminderStatus(v.insurance?.expiryDate, v.insurance?.reminderDays||30);
+    const rows = vehicles.map(v=>{ const s=reminderStatus(v.insurance?.expiryDate, v.insurance?.reminderDays||30);
       return [v.name, v.insurance?.company||'—', v.insurance?.policyNo||'—', v.insurance?.expiryDate?fmtDate(v.insurance.expiryDate):'—', s.label]; });
     return { columns:['Vehicle','Company','Policy No','Expiry','Status'], rows }; } },
   { id:'puc', label:'PUC (Smoke Test)', gen: () => {
-    const rows = DB.vehicles.all().filter(v=>v.fuelType!=='Electric (EV)').map(v=>{ const s=reminderStatus(v.puc?.expiryDate, 15);
+    const rows = vehicles.filter(v=>v.fuelType!=='Electric (EV)').map(v=>{ const s=reminderStatus(v.puc?.expiryDate, 15);
       return [v.name, v.puc?.issueDate?fmtDate(v.puc.issueDate):'—', v.puc?.expiryDate?fmtDate(v.puc.expiryDate):'—', s.label]; });
     return { columns:['Vehicle','Issue Date','Expiry','Status'], rows }; } },
   { id:'fc', label:'FC Renewal', gen: () => {
-    const rows = DB.vehicles.all().map(v=>{ const s=reminderStatus(v.fc?.expiryDate, v.fc?.reminderDays||30);
+    const rows = vehicles.map(v=>{ const s=reminderStatus(v.fc?.expiryDate, v.fc?.reminderDays||30);
       return [v.name, v.fc?.issueDate?fmtDate(v.fc.issueDate):'—', v.fc?.expiryDate?fmtDate(v.fc.expiryDate):'—', s.label]; });
     return { columns:['Vehicle','Issue Date','Expiry','Status'], rows }; } },
   { id:'expense', label:'Expense Report (All)', gen: () => {
     const rows = [];
-    DB.fuel.all().forEach(f=>{ const v=DB.vehicles.get(f.vehicleId); rows.push([fmtDate(f.date), 'Fuel', v?v.name:'—', fmtMoney(f.cost)]); });
-    DB.ev.all().forEach(e=>{ const v=DB.vehicles.get(e.vehicleId); rows.push([fmtDate(e.date), 'EV Charging', v?v.name:'—', fmtMoney(e.cost)]); });
-    DB.maint.all().forEach(m=>{ const v=DB.vehicles.get(m.vehicleId); rows.push([fmtDate(m.date), m.category, v?v.name:'—', fmtMoney(m.cost)]); });
+    maintData.filter(m=>m.type==='Fuel').forEach(f=>{ const v=vehicles.find(v => v.id === f.vehicleId); rows.push([fmtDate(f.date), 'Fuel', v?v.name:'—', fmtMoney(f.cost)]); });
+    maintData.filter(m=>m.type==='EV Charging').forEach(e=>{ const v=vehicles.find(v => v.id === e.vehicleId); rows.push([fmtDate(e.date), 'EV Charging', v?v.name:'—', fmtMoney(e.cost)]); });
+    maintData.forEach(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); rows.push([fmtDate(m.date), m.category, v?v.name:'—', fmtMoney(m.cost)]); });
     rows.sort((a,b)=> new Date(b[0]) - new Date(a[0]));
     return { columns:['Date','Type','Vehicle','Cost'], rows }; } }
 ];
 
 let currentReport = null;
-function renderReportsTab(){
+async function renderReportsTab(){
+  
+  const maintenanceRes = await getMaintenance();
+
+if (!maintenanceRes.success) {
+    toast("Failed to load reports");
+    return;
+}
+
+maintData = maintenanceRes.data;
+
+const vehicleRes = await getVehicles();
+
+vehicles = vehicleRes.data;
+const scheduleRes = await getSchedule();
+
+if (!scheduleRes.success) {
+    toast("Failed to load schedules");
+    return;
+}
+
+schedules = scheduleRes.data;
+if (!vehicleRes.success) {
+    toast("Failed to load vehicles");
+    return;
+}
+
+
   $('#tabBody').innerHTML = `
     <div class="report-picker no-print" id="reportPicker"></div>
     <div class="card" id="reportOutput"><div class="empty" style="padding:10px;">Choose a report above.</div></div>
@@ -598,7 +646,7 @@ function renderApprovalsTab(){
   const list = DB.maint.all().filter(m=>m.approvalStatus);
   const threshold = DB.settings.get().approvalThreshold || 5000;
   $('#tabBody').innerHTML = list.length ? `<div class="card">${list.map(m=>{
-    const v = DB.vehicles.get(m.vehicleId);
+    const v = vehicles.find(v => v.id === m.vehicleId);
     return `<div class="list-row">
       <div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${fmtMoney(m.cost)}</div></div>
       <select data-id="${m.id}" class="approvalSelect" style="background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;">

@@ -75,25 +75,69 @@ const DEFAULT_INTERVALS = {
 function addDays(iso, days){ const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
 
 /** Compute due status for one vehicle + maintenance category, using vehicle.schedule[category] with defaults as fallback. */
-function computeScheduleStatus(vehicle, category){
-  const sch = (vehicle.schedule && vehicle.schedule[category]) || {};
-  const def = DEFAULT_INTERVALS[category] || {km:0, days:0};
-  const intervalKm = sch.intervalKm || def.km || 0;
-  const intervalDays = sch.intervalDays || def.days || 0;
-  const lastDate = sch.lastDate || null;
-  const lastOdo = sch.lastOdo || null;
-  const nextDueKm = sch.nextDueKm != null ? sch.nextDueKm : (lastOdo && intervalKm ? lastOdo + intervalKm : null);
-  const nextDueDate = sch.nextDueDate || (lastDate && intervalDays ? addDays(lastDate, intervalDays) : null);
-  const remainingKm = nextDueKm != null ? nextDueKm - (vehicle.odometer||0) : null;
-  const remainingDays = nextDueDate != null ? daysBetween(todayISO(), nextDueDate) : null;
+function computeScheduleStatus(vehicle, category) {
 
-  let status = 'Not Set';
-  if(remainingKm != null || remainingDays != null){
-    const overdue = (remainingKm != null && remainingKm < 0) || (remainingDays != null && remainingDays < 0);
-    const dueSoon = (remainingKm != null && remainingKm <= 500) || (remainingDays != null && remainingDays <= 30);
-    status = overdue ? 'Overdue' : (dueSoon ? 'Due Soon' : 'On Time');
+  const record = schedules.find(s =>
+    s.vehicleId === vehicle.id &&
+    s.category === category
+  );
+
+  const def = DEFAULT_INTERVALS[category] || { km: 0, days: 0 };
+
+  const intervalKm = Number(record?.intervalKm || def.km || 0);
+  const intervalDays = Number(record?.intervalDays || def.days || 0);
+
+  const lastDate = record?.lastDate || null;
+  const lastOdo = Number(record?.lastOdo || 0);
+
+  const nextDueKm =
+    lastOdo && intervalKm ? lastOdo + intervalKm : null;
+
+  const nextDueDate =
+    lastDate && intervalDays
+      ? addDays(lastDate, intervalDays)
+      : null;
+
+  const remainingKm =
+    nextDueKm != null
+      ? nextDueKm - Number(vehicle.odometer || 0)
+      : null;
+
+  const remainingDays =
+    nextDueDate != null
+      ? daysBetween(todayISO(), nextDueDate)
+      : null;
+
+  let status = "Not Set";
+
+  if (record) {
+    const overdue =
+      (remainingKm != null && remainingKm < 0) ||
+      (remainingDays != null && remainingDays < 0);
+
+    const dueSoon =
+      (remainingKm != null && remainingKm <= 500) ||
+      (remainingDays != null && remainingDays <= 30);
+
+    status = overdue
+      ? "Overdue"
+      : dueSoon
+      ? "Due Soon"
+      : "On Time";
   }
-  return { category, lastDate, lastOdo, nextDueDate, nextDueKm, remainingKm, remainingDays, intervalKm, intervalDays, status };
+
+  return {
+    category,
+    lastDate,
+    lastOdo,
+    nextDueDate,
+    nextDueKm,
+    remainingKm,
+    remainingDays,
+    intervalKm,
+    intervalDays,
+    status
+  };
 }
 function scheduleStatusLevel(status){ return status==='Overdue' ? 'red' : status==='Due Soon' ? 'orange' : status==='On Time' ? 'green' : 'neutral'; }
 
