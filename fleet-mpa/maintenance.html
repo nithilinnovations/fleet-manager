@@ -577,7 +577,7 @@ console.log("Interval Days =", document.getElementById("sIntDays").value);
 /* ============================== REPORTS TAB ============================== */
 let vehicles = [];
 let maintData = [];
-let schedules = [];
+let reportSchedules = [];
 const REPORTS = [
   { id:'vehicle', label:'Vehicle-wise Maintenance', gen: () => {
     const rows = vehicles.map(v => {
@@ -667,7 +667,7 @@ if (!scheduleRes.success) {
     return;
 }
 
-schedules = scheduleRes.data;
+reportSchedules = scheduleRes.data;
 if (!vehicleRes.success) {
     toast("Failed to load vehicles");
     return;

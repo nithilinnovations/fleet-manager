@@ -75,6 +75,7 @@ const DEFAULT_INTERVALS = {
 function addDays(iso, days){ const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
 
 /** Compute due status for one vehicle + maintenance category, using vehicle.schedule[category] with defaults as fallback. */
+const schedules = [];
 function computeScheduleStatus(vehicle, category) {
 
   const record = schedules.find(s =>
@@ -157,12 +158,22 @@ function recordServiceCompletion(vehicle, category, date, odo){
 
 /* ---------------------- auth ---------------------- */
 const AUTH = {
-  CREDS: { user:'Driver', pass:'Kannan@1990' },
-  isLoggedIn(){ return DB._get('fleet_auth', {loggedIn:false}).loggedIn === true; },
-  login(u,p){ if((u||'').trim().toLowerCase()===AUTH.CREDS.user.toLowerCase() && p===AUTH.CREDS.pass){ DB._set('fleet_auth',{loggedIn:true}); return true; } return false; },
-  logout(){ DB._set('fleet_auth',{loggedIn:false}); location.href = 'index.html'; },
-  /** Call at the top of every protected page. Redirects to login if not signed in. */
-  guard(){ if(!AUTH.isLoggedIn()){ location.href = 'index.html'; } }
+
+  isLoggedIn() {
+    return sessionStorage.getItem("loggedIn") === "true";
+  },
+
+  logout() {
+    sessionStorage.removeItem("loggedIn");
+    location.href = "index.html";
+  },
+
+  guard() {
+    if (!this.isLoggedIn()) {
+      location.href = "index.html";
+    }
+  }
+
 };
 
 /* ---------------------- reminder / status engine ---------------------- */

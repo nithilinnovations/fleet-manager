@@ -199,14 +199,51 @@ function boot(){
   markActiveNav('index.html');
   renderDashboard();
 }
-$('#loginForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const u = $('#loginUser').value.trim(), p = $('#loginPass').value;
-  if(AUTH.login(u,p)){ boot(); } else { $('#loginError').style.display = 'block'; }
+$('#loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const password = $('#loginPass').value;
+
+    try {
+
+        const response = await fetch("http://localhost:5000/api/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                password: password
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+
+            sessionStorage.setItem("loggedIn", "true");
+
+            boot();
+
+        } else {
+
+            $('#loginError').style.display = 'block';
+
+        }
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert("Server Error");
+
+    }
+
 });
 let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; });
-if(AUTH.isLoggedIn()) boot();
+if (sessionStorage.getItem("loggedIn")) {
+    boot();
+}
 </script>
 </body>
 </html>

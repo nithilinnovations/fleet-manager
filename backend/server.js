@@ -8,6 +8,7 @@ const vehicleRoutes = require("./routes/vehicleRoutes");
 const fuelRoutes = require("./routes/fuelRoutes");
 const maintenanceRoutes = require("./routes/maintenanceRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
+const loginRoutes = require("./routes/loginRoutes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/fuel", fuelRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/schedule", scheduleRoutes);
+app.use("/api/login", loginRoutes);
 app.get("/api/test123", (req, res) => {
   res.send("TEST OK");
 });
