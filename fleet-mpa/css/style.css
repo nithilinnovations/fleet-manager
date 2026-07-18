@@ -413,3 +413,30 @@ button, input, select, textarea{ font-family:inherit; }
     border-top:1px solid rgba(255,255,255,.08);
     padding-top:12px;
 }
+.modal{
+
+    position:fixed;
+    inset:0;
+
+    background:rgba(0,0,0,.55);
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    z-index:9999;
+
+}
+
+.modal-content{
+
+    width:420px;
+    max-width:90%;
+
+    background:#1b1f27;
+
+    padding:22px;
+
+    border-radius:14px;
+
+}

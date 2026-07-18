@@ -9,10 +9,11 @@ router.get("/test", (req, res) => {
 
 const {
   addMaintenance,
-  getMaintenance
+  getMaintenance,
+  updateMaintenance
 } = require("../controllers/maintenanceController");
 
 router.post("/", addMaintenance);
 router.get("/", getMaintenance);
-
+router.put("/:id", updateMaintenance);
 module.exports = router;

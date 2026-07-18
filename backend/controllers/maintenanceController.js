@@ -61,8 +61,36 @@ const getMaintenance = async (req, res) => {
   }
 
 };
+// Update Maintenance
+const updateMaintenance = async (req, res) => {
+
+    try {
+
+        const id = req.params.id;
+
+        await db
+            .collection("maintenance")
+            .doc(id)
+            .update(req.body);
+
+        res.json({
+            success: true,
+            message: "Maintenance updated"
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
+
+    }
+
+};
 
 module.exports = {
   addMaintenance,
-  getMaintenance
+  getMaintenance,
+  updateMaintenance
 };

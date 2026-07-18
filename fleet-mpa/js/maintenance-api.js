@@ -21,3 +21,22 @@ async function getMaintenance() {
 
 window.addMaintenance = addMaintenance;
 window.getMaintenance = getMaintenance;
+
+async function updateMaintenance(id, data) {
+
+    const res = await fetch(`${MAINTENANCE_API_URL}/${id}`, {
+
+        method: "PUT",
+
+        headers: {
+            "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(data)
+
+    });
+
+    return await res.json();
+}
+
+window.updateMaintenance = updateMaintenance;

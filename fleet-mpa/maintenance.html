@@ -79,6 +79,7 @@ console.log("Maintenance:", maintData);
     else if(st.status==='Due Soon') upcoming.push({v, cat, st});
   }));
   const recentCompleted = maintData
+    .filter(m => m.approvalStatus === "Completed")
     .sort((a,b)=>new Date(b.date)-new Date(a.date))
     .slice(0,6);
 
@@ -201,11 +202,19 @@ const list = res.data.slice(0,8);
     $('#recentEntryList').innerHTML = list.length ? list.map(m=>{
       const v = vehicles.find(v => v.id === m.vehicleId);
       const statusChip = m.approvalStatus ? `<span class="chip ${m.approvalStatus==='Approved'||m.approvalStatus==='Completed'?'green':m.approvalStatus==='Rejected'?'red':'orange'}">${m.approvalStatus}</span>` : '';
-      return `<div class="list-row"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${m.odometer} km · ${esc(m.vendor||'')}</div></div>
+      return `
+<div class="list-row recent-entry"
+     data-id="${m.id}"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)} · ${m.odometer} km · ${esc(m.vendor||'')}</div></div>
         <div style="text-align:right;">${statusChip}<div class="amt">${fmtMoney(m.cost)}</div></div></div>`;
     }).join('') : `<div class="empty" style="padding:10px;">No records yet.</div>`;
   };
-  renderRecent();
+  await renderRecent();
+
+document.querySelectorAll(".recent-entry").forEach(row => {
+    row.onclick = () => {
+        openCompletedPopup(row.dataset.id);
+    };
+});
 
   $('#saveMaintBtn').onclick = async() => {
 
@@ -247,6 +256,65 @@ if (!result.success) {
 toast("Maintenance record saved");
 
 renderEntryTab();
+
+};
+let selectedMaintenanceId = null;
+
+async function openCompletedPopup(id) {
+
+    selectedMaintenanceId = id;
+
+    const res = await getMaintenance();
+
+    if (!res.success) {
+        toast("Failed to load record");
+        return;
+    }
+
+    const m = res.data.find(x => x.id === id);
+
+    if (!m) return;
+
+    const vehicleRes = await getVehicles();
+
+    if (!vehicleRes.success) {
+        toast("Failed to load vehicle");
+        return;
+    }
+
+    const vehicles = vehicleRes.data;
+
+    const v = vehicles.find(x => x.id === m.vehicleId);
+
+    document.getElementById("cmVehicle").textContent = v ? v.name : "-";
+    document.getElementById("cmCategory").textContent = m.category;
+    document.getElementById("cmDate").textContent = fmtDate(m.date);
+    document.getElementById("cmCost").textContent = m.cost || 0;
+
+    document.getElementById("completedModal").style.display = "flex";
+}
+document.getElementById("closeModal").onclick = () => {
+
+    document.getElementById("completedModal").style.display = "none";
+
+};
+document.getElementById("submitCompleted").onclick = async () => {
+
+    const result = await updateMaintenance(selectedMaintenanceId, {
+        approvalStatus: "Completed"
+    });
+
+    if (!result.success) {
+        toast("Failed to update");
+        return;
+    }
+
+    toast("Maintenance Completed");
+
+    document.getElementById("completedModal").style.display = "none";
+
+    renderEntryTab();
+    renderDashboardTab();
 };
 }
 
@@ -662,5 +730,42 @@ function renderApprovalsTab(){
 
 renderTab();
 </script>
+<div id="completedModal" class="modal" style="display:none;">
+
+    <div class="modal-content">
+
+        <h3>Maintenance Completion</h3>
+
+        <p><strong>Vehicle:</strong> <span id="cmVehicle"></span></p>
+
+        <p><strong>Category:</strong> <span id="cmCategory"></span></p>
+
+        <p><strong>Date:</strong> <span id="cmDate"></span></p>
+
+        <p><strong>Cost:</strong> ₹<span id="cmCost"></span></p>
+
+        <div class="field">
+            <label>Status</label>
+
+            <select id="cmStatus">
+                <option value="Completed">Completed</option>
+            </select>
+        </div>
+
+        <div class="btn-row">
+
+            <button class="btn secondary" id="closeModal">
+                Cancel
+            </button>
+
+            <button class="btn" id="submitCompleted">
+                Submit
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
 </body>
 </html>
