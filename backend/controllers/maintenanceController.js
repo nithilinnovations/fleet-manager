@@ -40,11 +40,11 @@ const getMaintenance = async (req, res) => {
     const data = [];
 
     snapshot.forEach(doc => {
-      data.push({
-        id: doc.id,
-        ...doc.data()
-      });
-    });
+  data.push({
+    ...doc.data(),
+    id: doc.id
+  });
+});
 
     res.json({
       success: true,
