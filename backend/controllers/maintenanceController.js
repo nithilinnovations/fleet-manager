@@ -63,30 +63,32 @@ const getMaintenance = async (req, res) => {
 };
 // Update Maintenance
 const updateMaintenance = async (req, res) => {
+  try {
+    const id = req.params.id;
 
-    try {
+    console.log("Document ID:", id);
+    console.log("Body:", req.body);
 
-        const id = req.params.id;
+    const docRef = db.collection("maintenance").doc(id);
 
-        await db
-            .collection("maintenance")
-            .doc(id)
-            .update(req.body);
+    await docRef.update({
+      approvalStatus: "Completed"
+    });
 
-        res.json({
-            success: true,
-            message: "Maintenance updated"
-        });
+    res.json({
+      success: true,
+      message: "Maintenance updated"
+    });
 
-    } catch (err) {
+  } catch (err) {
 
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
+    console.error("UPDATE ERROR:", err);
 
-    }
-
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
 };
 
 module.exports = {
