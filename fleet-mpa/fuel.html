@@ -142,24 +142,101 @@ function renderFuelForm(v){
         <div class="field"><label>Fuel Filled (Litres)</label><input id="fuLitres" type="number" step="0.01"></div>
       </div>
       <div class="grid2">
-        <div class="field mb0"><label>Total Fuel Filling Cost (₹)</label><div class="mono" id="fuTotalCost" style="font-size:18px;font-weight:700;padding:6px 0;">₹0</div></div>
-        <div class="field mb0"><label>Mileage (km/L)</label><div class="mono" id="fuMileage" style="font-size:18px;font-weight:700;padding:6px 0;">—</div></div>
-      </div>
+    <div class="field">
+        <label>Total Fuel Filling Cost (₹)</label>
+        <input id="fuTotalCost" type="number" step="0.01">
+    </div>
+
+    <div class="field mb0">
+        <label>Mileage (km/L)</label>
+        <div class="mono" id="fuMileage"
+             style="font-size:18px;font-weight:700;padding:6px 0;">
+            —
+        </div>
+    </div>
+</div>
       <div class="field mt16"><label>Fuel Station</label><input id="fuStation" placeholder="e.g. Indian Oil, Anna Nagar"></div>
       <button class="btn mt8" id="saveFuelBtn">Save Fuel Entry</button>
     </div>
   `;
   $('#fuStart').value = lastKnownOdo(v);
-  const recalc = () => {
-    const s = Number($('#fuStart').value)||0, e = Number($('#fuEnd').value)||0;
-    const km = Math.max(0, e-s);
-    $('#fuTotalKm').textContent = km + ' km';
-    const rate = Number($('#fuRate').value)||0, litres = Number($('#fuLitres').value)||0;
-    $('#fuTotalCost').textContent = fmtMoney(rate*litres);
-    $('#fuMileage').textContent = (litres>0 && km>0) ? (km/litres).toFixed(1)+' km/L' : '—';
-  };
-  ['fuStart','fuEnd','fuRate','fuLitres'].forEach(id => $('#'+id).oninput = recalc);
-  recalc();
+  function recalc(changed = "") {
+
+    const s = Number($("#fuStart").value) || 0;
+    const e = Number($("#fuEnd").value) || 0;
+
+    const km = Math.max(0, e - s);
+    $("#fuTotalKm").textContent = km + " km";
+
+    let rate = parseFloat($("#fuRate").value) || 0;
+    let litres = parseFloat($("#fuLitres").value) || 0;
+    let cost = parseFloat($("#fuTotalCost").value) || 0;
+
+    if (changed === "rate") {
+
+        if (litres > 0)
+            cost = rate * litres;
+
+        $("#fuTotalCost").value = cost ? cost.toFixed(2) : "";
+
+    }
+
+    else if (changed === "litres") {
+
+        if (rate > 0)
+            cost = rate * litres;
+        else if (cost > 0)
+            rate = cost / litres;
+
+        $("#fuRate").value = rate ? rate.toFixed(2) : "";
+        $("#fuTotalCost").value = cost ? cost.toFixed(2) : "";
+
+    }
+
+    else if (changed === "cost") {
+
+        if (rate > 0)
+            litres = cost / rate;
+        else if (litres > 0)
+            rate = cost / litres;
+
+        $("#fuRate").value = rate ? rate.toFixed(2) : "";
+        $("#fuLitres").value = litres ? litres.toFixed(2) : "";
+
+    }
+
+    else {
+
+        if (rate > 0 && litres > 0 && !cost) {
+            cost = rate * litres;
+            $("#fuTotalCost").value = cost.toFixed(2);
+        }
+
+        if (cost > 0 && rate > 0 && !litres) {
+            litres = cost / rate;
+            $("#fuLitres").value = litres.toFixed(2);
+        }
+
+        if (cost > 0 && litres > 0 && !rate) {
+            rate = cost / litres;
+            $("#fuRate").value = rate.toFixed(2);
+        }
+
+    }
+
+    $("#fuMileage").textContent =
+        (km > 0 && litres > 0)
+            ? (km / litres).toFixed(1) + " km/L"
+            : "—";
+}
+
+$("#fuStart").onchange = () => recalc();
+$("#fuEnd").onchange = () => recalc();
+$("#fuRate").onchange = () => recalc("rate");
+$("#fuLitres").onchange = () => recalc("litres");
+$("#fuTotalCost").onchange = () => recalc("cost");
+
+recalc();
 
   $('#saveFuelBtn').onclick = async () => {
 
