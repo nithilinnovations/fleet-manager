@@ -4,10 +4,37 @@ const db = require("../config/firebase");
 
 // GET Trips
 router.get("/", async (req, res) => {
-  res.json({
-    success: true,
-    message: "Trips API Working"
-  });
+  try {
+
+    const snapshot = await db
+      .collection("trips")
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const trips = [];
+
+    snapshot.forEach(doc => {
+      trips.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+
+    res.json({
+      success: true,
+      trips
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
 });
 
 // POST Trip
