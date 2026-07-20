@@ -72,7 +72,20 @@ function renderForm(){
     if(end < start){ toast('Ending odometer must be greater than starting'); return; }
     const photo = await fileToDataUrl($('#tPhoto'));
     const t = { id:uid(), date:$('#tDate').value, vehicleId:vSel.value, startOdo:start, endOdo:end, distance:end-start, purpose:$('#tPurpose').value, remarks:$('#tRemarks').value, photo };
-    DB.trips.add(t);
+    const response = await fetch("https://fleet-manager-o3ma.onrender.com/api/trips", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify(t)
+});
+
+const result = await response.json();
+
+if (!result.success) {
+    toast("Failed to save trip");
+    return;
+}
     const v = DB.vehicles.get(vSel.value); if(v && end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
     toast('Trip saved'); togglePanel(false); renderList();
   };

@@ -10,7 +10,7 @@ const maintenanceRoutes = require("./routes/maintenanceRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const loginRoutes = require("./routes/loginRoutes");
 const documentRoutes = require("./routes/documentRoutes");
-
+const tripRoutes = require("./routes/tripRoutes");
 
 const app = express();
 
@@ -23,6 +23,7 @@ app.use("/api/maintenance", maintenanceRoutes);
 app.use("/api/schedule", scheduleRoutes);
 app.use("/api/login", loginRoutes);
 app.use("/api/documents", documentRoutes);
+app.use("/api/trips", tripRoutes);
 app.get("/api/test123", (req, res) => {
   res.send("TEST OK");
 });
