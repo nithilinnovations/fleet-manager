@@ -43,9 +43,9 @@ const getVehicles = async (req, res) => {
     });
 
     res.json({
-      success: true,
-      data: vehicles
-    });
+  success: true,
+  vehicles
+});
 
   } catch (error) {
     console.error(error);

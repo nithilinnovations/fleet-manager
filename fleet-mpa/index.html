@@ -144,10 +144,16 @@ function vehicleRowHtml(v){
   </div>`;
 }
 
-function renderDashboard(){
+async function renderDashboard(){
   $('#todayDate').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long', day:'numeric', month:'long'});
-  const vehicles = DB.vehicles.all();
-  const trips = DB.trips.all();
+  const vehicleResponse = await fetch("https://fleet-manager-o3ma.onrender.com/api/vehicles");
+const vehicleResult = await vehicleResponse.json();
+
+const vehicles = vehicleResult.success ? vehicleResult.vehicles : [];
+  const response = await fetch("https://fleet-manager-o3ma.onrender.com/api/trips");
+const result = await response.json();
+
+const trips = result.success ? result.trips : [];
   const fuel = DB.fuel.all();
   const ev = DB.ev.all();
 
@@ -191,13 +197,13 @@ function renderDashboard(){
   }).join('') : `<div class="empty" style="padding:10px;"><div class="ic">✅</div>No pending approvals.</div>`;
 }
 
-function boot(){
+async function boot(){
   $('#loginScreen').classList.add('hide');
   $('#app').classList.remove('hide');
   applyTheme(DB.settings.get().theme || 'dark');
   wireThemeToggle();
   markActiveNav('index.html');
-  renderDashboard();
+  await renderDashboard();
 }
 $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
