@@ -40,10 +40,12 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/common.js"></script>
+<script src="js/vehicle-api.js"></script>
+<script src="js/document-api.js"></script>
 <script>
 initPage('documents.html');
 const preselect = qs('vehicle');
-
+let vehicles = [];
 function docRow(label, key, docs){
   const has = docs && docs[key];
   return `<div class="list-row">
@@ -53,13 +55,40 @@ function docRow(label, key, docs){
     </label>
   </div>`;
 }
+async function loadDocument(vehicleId) {
 
-function renderDoc(vid){
-  const v = DB.vehicles.get(vid);
+    const res = await getDocument(vehicleId);
+
+    if (res.success && res.data) {
+
+        renderDoc(vehicleId, res.data);
+
+    } else {
+
+        renderDoc(vehicleId, null);
+
+    }
+
+}
+function renderDoc(vid, docData = null){
+  const v = vehicles.find(vehicle => vehicle.id === vid);
   if(!v) return;
   const isEV = v.fuelType === 'Electric (EV)';
-  v.documents = v.documents || {};
+  if (docData) {
 
+    v.insurance = docData.insurance || {};
+    v.puc = docData.puc || {};
+    v.fc = docData.fc || {};
+    v.documents = docData.documents || {};
+
+} else {
+
+    v.insurance = {};
+    v.puc = {};
+    v.fc = {};
+    v.documents = {};
+
+}
   const insS = reminderStatus(v.insurance?.expiryDate, v.insurance?.reminderDays||30);
   const pucS = reminderStatus(v.puc?.expiryDate, 15);
   const fcS = reminderStatus(v.fc?.expiryDate, v.fc?.reminderDays||30);
@@ -119,34 +148,161 @@ function renderDoc(vid){
     </div>
   `;
 
-  $('#saveDocBtn').onclick = () => {
+  $('#saveDocBtn').onclick = async() => {
     v.insurance = { policyNo:$('#dInsPolicy').value, company:$('#dInsCo').value, startDate:$('#dInsStart').value, expiryDate:$('#dInsExp').value, premium:Number($('#dInsPrem').value)||0, reminderDays:Number($('#dInsRem').value)||30 };
     if(!isEV) v.puc = { issueDate:$('#dPucIssue').value, expiryDate:$('#dPucExp').value };
     v.fc = { issueDate:$('#dFcIssue').value, expiryDate:$('#dFcExp').value, reminderDays:Number($('#dFcRem').value)||30 };
-    DB.vehicles.upsert(v);
-    toast('Saved'); renderDoc(vid);
+   try {
+
+    const payload = {
+    vehicleId: v.id,
+    vehicleName: v.name,
+    insurance: v.insurance,
+    puc: v.puc,
+    fc: v.fc,
+    documents: v.documents
+};
+
+let result = await getDocument(v.id);
+
+let res;
+
+if (result.success && result.data) {
+
+    res = await updateDocument(result.data.id, payload);
+
+} else {
+
+    res = await saveDocument(payload);
+
+}
+
+if (res.success) {
+
+    toast("Saved Successfully ✅");
+
+    await loadDocument(v.id);
+
+} else {
+
+    toast("Failed to Save");
+
+}
+
+} catch (err) {
+
+    console.error(err);
+
+    toast("Something went wrong");
+
+}
   };
 
   $$('input[type=file][data-dockey]').forEach(inp => {
-    inp.onchange = async () => {
-      const dataUrl = await fileToDataUrl(inp);
-      if(!dataUrl) return;
-      v.documents = v.documents || {};
-      v.documents[inp.dataset.dockey] = dataUrl;
-      DB.vehicles.upsert(v);
-      toast('Document uploaded'); renderDoc(vid);
-    };
-  });
+  inp.onchange = async () => {
+
+    const dataUrl = await fileToDataUrl(inp);
+    if (!dataUrl) return;
+
+    v.documents = v.documents || {};
+    v.documents[inp.dataset.dockey] = dataUrl;
+
+    try {
+
+    const payload = {
+    vehicleId: v.id,
+    vehicleName: v.name,
+    insurance: v.insurance,
+    puc: v.puc,
+    fc: v.fc,
+    documents: v.documents
+};
+
+let result = await getDocument(v.id);
+
+let res;
+
+if (result.success && result.data) {
+
+    res = await updateDocument(result.data.id, payload);
+
+} else {
+
+    res = await saveDocument(payload);
+
 }
 
-function boot(){
-  const vehicles = DB.vehicles.all();
-  if(!vehicles.length){ $('#noVehicles').classList.remove('hide'); $('#vehiclePicker').closest('.field').classList.add('hide'); return; }
-  const picker = $('#vehiclePicker');
-  picker.innerHTML = vehicleOptions(preselect || vehicles[0].id);
-  picker.onchange = () => renderDoc(picker.value);
-  renderDoc(picker.value);
+if (res.success) {
+
+    toast("Document uploaded ✅");
+
+    await loadDocument(v.id);
+
+} else {
+
+    toast("Upload failed");
+
 }
+
+    } catch (err) {
+
+      console.error(err);
+
+      toast("Something went wrong");
+
+    }
+
+  };
+});
+}
+
+async function boot() {
+
+    try {
+
+        const res = await getVehicles();
+
+        if (!res.success) {
+            toast("Failed to load vehicles");
+            return;
+        }
+
+        vehicles = res.data;
+
+        if (!vehicles.length) {
+            $('#noVehicles').classList.remove('hide');
+            $('#vehiclePicker').closest('.field').classList.add('hide');
+            return;
+        }
+
+        const picker = $('#vehiclePicker');
+
+        picker.innerHTML = vehicles.map(v => `
+            <option value="${v.id}">
+                ${v.name} - ${v.regNo}
+            </option>
+        `).join("");
+
+        if (preselect) {
+            picker.value = preselect;
+        }
+
+        picker.onchange = async () => {
+            await loadDocument(picker.value);
+        };
+
+        await loadDocument(picker.value);
+
+    } catch (err) {
+
+        console.error(err);
+
+        toast("Unable to load vehicles");
+
+    }
+
+}
+
 boot();
 </script>
 </body>

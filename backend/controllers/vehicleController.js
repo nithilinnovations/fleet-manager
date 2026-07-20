@@ -60,11 +60,13 @@ const getVehicles = async (req, res) => {
 // Update Vehicle
 const updateVehicle = async (req, res) => {
   try {
+    console.log("ID:", req.params.id);
+    console.log("BODY:", req.body);
+
     const { id } = req.params;
-    const vehicle = req.body;
 
     await db.collection("vehicles").doc(id).update({
-      ...vehicle,
+      ...req.body,
       updatedAt: new Date()
     });
 
@@ -74,8 +76,7 @@ const updateVehicle = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-
+    console.error("UPDATE ERROR:", error);
     res.status(500).json({
       success: false,
       message: error.message
