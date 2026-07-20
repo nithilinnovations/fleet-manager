@@ -98,7 +98,7 @@ async function renderList() {
     try {
 
         const result = await getVehicles();
-        const list = result.data;
+        const list = result.vehicles || [];
 
         $('#vehicleCountSub').textContent =
             `${list.length} vehicle${list.length !== 1 ? 's' : ''} in fleet`;
@@ -130,7 +130,7 @@ if (existingId) {
     const result = await getVehicle(existingId);
 
     if (result.success) {
-        v = result.data;
+        v = result.vehicles;
     }
 }
   const isEV = (fuelType) => fuelType === 'Electric (EV)';
@@ -268,7 +268,7 @@ if (!result.success) {
     return;
 }
 
-const v = result.data;
+const v = result.vehicles;
   $('#vdName').textContent = v.name;
   $('#vdEditBtn').onclick = () => openVehicleForm(v.id);
 

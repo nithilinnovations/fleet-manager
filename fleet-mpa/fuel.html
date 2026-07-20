@@ -62,8 +62,7 @@ async function renderVehicleList() {
     return;
   }
 
-  const vehicles = res.data;
-
+ const vehicles = res.vehicles || [];
   $('#vehicleList').innerHTML = vehicles.length
     ? vehicles.map(v => {
 
@@ -110,7 +109,7 @@ if (!res.success) {
   return;
 }
 
-const v = res.data;
+const v = res.vehicles;
   if(!v){ location.href = 'fuel.html'; return; }
   const isEV = v.fuelType === 'Electric (EV)';
   $('#vdName').textContent = v.name;
@@ -343,7 +342,7 @@ if (!res.success) {
     return;
 }
 
-const entries = res.data.slice().reverse();
+const entries = res.vehicles.slice().reverse();
   if(!entries.length){ $('#entryList').innerHTML = `<div class="empty" style="padding:16px;"><div class="ic">${isEV?'🔋':'⛽'}</div>No entries yet for this vehicle.</div>`; return; }
   $('#entryList').innerHTML = entries.map(en => isEV ? `
     <div class="card fuel-history-card">

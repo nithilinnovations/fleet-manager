@@ -59,9 +59,9 @@ async function loadDocument(vehicleId) {
 
     const res = await getDocument(vehicleId);
 
-    if (res.success && res.data) {
+    if (res.success && res.vehicles) {
 
-        renderDoc(vehicleId, res.data);
+        renderDoc(vehicleId, res.vehicles);
 
     } else {
 
@@ -167,9 +167,9 @@ let result = await getDocument(v.id);
 
 let res;
 
-if (result.success && result.data) {
+if (result.success && result.vehicles) {
 
-    res = await updateDocument(result.data.id, payload);
+    res = await updateDocument(result.vehicles.id, payload);
 
 } else {
 
@@ -222,9 +222,9 @@ let result = await getDocument(v.id);
 
 let res;
 
-if (result.success && result.data) {
+if (result.success && result.vehicles) {
 
-    res = await updateDocument(result.data.id, payload);
+    res = await updateDocument(result.vehicles.id, payload);
 
 } else {
 
@@ -267,7 +267,7 @@ async function boot() {
             return;
         }
 
-        vehicles = res.data;
+        vehicles = res.vehicles || [];
 
         if (!vehicles.length) {
             $('#noVehicles').classList.remove('hide');

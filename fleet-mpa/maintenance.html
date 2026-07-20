@@ -67,7 +67,7 @@ function renderTab(){
 /* ============================== DASHBOARD TAB ============================== */
 async function renderDashboardTab(){
  const vehicleRes = await getVehicles();
-const vehicles = vehicleRes.data;
+const vehicles = vehicleRes.vehicles || [];
 
 const maintenanceRes = await getMaintenance();
 const maintData = maintenanceRes.data;
@@ -152,7 +152,7 @@ if (!vehicleRes.success) {
     return;
 }
 
-const vehicles = vehicleRes.data;
+const vehicles = vehicleRes.vehicles || [];
 
 if (vehicles.length === 0) {
     $('#tabBody').innerHTML = `
@@ -198,7 +198,7 @@ if (!res.success) {
     return;
 }
 
-const list = res.data.slice(0,8);
+const list = res.data || [];
     $('#recentEntryList').innerHTML = list.length ? list.map(m=>{
       const v = vehicles.find(v => v.id === m.vehicleId);
       const statusChip = m.approvalStatus ? `<span class="chip ${m.approvalStatus==='Approved'||m.approvalStatus==='Completed'?'green':m.approvalStatus==='Rejected'?'red':'orange'}">${m.approvalStatus}</span>` : '';
@@ -282,7 +282,7 @@ async function openCompletedPopup(id) {
         return;
     }
 
-    const vehicles = vehicleRes.data;
+    const vehicles = vehicleRes.vehicles || [];
 
     const v = vehicles.find(x => x.id === m.vehicleId);
 
@@ -328,7 +328,7 @@ async function renderScheduleTab() {
         return;
     }
 
-    const vehicles = vehicleRes.data;
+    const vehicles = vehicleRes.vehicles || [];
     const scheduleRes = await getSchedule();
 const schedules = scheduleRes.success ? scheduleRes.data : [];
 
@@ -659,7 +659,7 @@ maintData = maintenanceRes.data;
 
 const vehicleRes = await getVehicles();
 
-vehicles = vehicleRes.data;
+vehicles = vehicleRes.vehicles || [];
 const scheduleRes = await getSchedule();
 
 if (!scheduleRes.success) {
