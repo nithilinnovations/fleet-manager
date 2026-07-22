@@ -191,13 +191,13 @@ const trips = result.success ? result.trips : [];
 
   const recent = trips.slice(0,5);
   $('#recentTrips').innerHTML = recent.length ? recent.map(t=>{
-    const v = DB.vehicles.get(t.vehicleId);
+    const v = vehicles.find(vehicle => vehicle.id === t.vehicleId);
     return `<div class="list-row"><div class="main"><div class="title">${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(t.date)} · ${esc(t.purpose||'—')}</div></div><div class="amt">${t.distance} km</div></div>`;
   }).join('') : `<div class="empty" style="padding:10px;"><div class="ic">🧭</div>No trips logged yet.</div>`;
 
   const pending = DB.maint.all().filter(m=>m.approvalStatus==='Pending');
   $('#pendingApprovals').innerHTML = pending.length ? pending.slice(0,5).map(m=>{
-    const v = DB.vehicles.get(m.vehicleId);
+    const v = vehicles.find(vehicle => vehicle.id === m.vehicleId);
     return `<div class="list-row"><div class="main"><div class="title">${esc(m.category)} — ${esc(v?v.name:'—')}</div><div class="meta">${fmtDate(m.date)}</div></div><div class="amt">${fmtMoney(m.cost)}</div></div>`;
   }).join('') : `<div class="empty" style="padding:10px;"><div class="ic">✅</div>No pending approvals.</div>`;
 }

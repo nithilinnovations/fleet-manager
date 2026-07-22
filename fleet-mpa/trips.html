@@ -92,7 +92,20 @@ ${v.name} - ${v.regNo}
     const start = Number($('#tStart').value), end = Number($('#tEnd').value);
     if(end < start){ toast('Ending odometer must be greater than starting'); return; }
     const photo = await fileToDataUrl($('#tPhoto'));
-    const t = { id:uid(), date:$('#tDate').value, vehicleId:vSel.value, startOdo:start, endOdo:end, distance:end-start, purpose:$('#tPurpose').value, remarks:$('#tRemarks').value, photo };
+    const selectedVehicle = vehicles.find(vehicle => vehicle.id === vSel.value);
+
+const t = {
+    id: uid(),
+    date: $('#tDate').value,
+    vehicleId: vSel.value,
+    vehicleName: selectedVehicle ? selectedVehicle.name : "",
+    startOdo: start,
+    endOdo: end,
+    distance: end - start,
+    purpose: $('#tPurpose').value,
+    remarks: $('#tRemarks').value,
+    photo
+};
     const response = await fetch("https://fleet-manager-o3ma.onrender.com/api/trips", {
     method: "POST",
     headers: {
@@ -131,7 +144,7 @@ async function renderList() {
     return `<div class="card">
       <div class="row-between">
         <div class="title" style="font-weight:700;">
-          ${esc(v ? v.name : '—')}
+          ${esc(v ? v.name : (t.vehicleName || '—'))}
         </div>
         <span class="chip neutral">${fmtDate(t.date)}</span>
       </div>
