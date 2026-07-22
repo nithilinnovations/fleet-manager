@@ -35,10 +35,23 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/common.js"></script>
+<script src="js/vehicle-api.js"></script>
 <script>
 initPage('trips.html');
 let panelOpen = false;
 const preselectVehicle = qs('vehicle');
+let vehicles = [];
+async function loadVehicles() {
+
+    const res = await getVehicles();
+
+    if (!res.success) {
+        toast("Unable to load vehicles");
+        return;
+    }
+
+    vehicles = res.vehicles || [];
+}
 
 function togglePanel(forceOpen){
   panelOpen = forceOpen !== undefined ? forceOpen : !panelOpen;
@@ -50,10 +63,18 @@ $('#formToggleBtn').onclick = () => togglePanel();
 
 function renderForm(){
   const wrap = $('#formPanelInner');
-  if(!DB.vehicles.all().length){ wrap.innerHTML = `<div style="color:var(--text-dim);padding:8px 0;">Add a vehicle first from Vehicle Details.</div>`; return; }
+  if (!vehicles.length) {
+    wrap.innerHTML = `<div style="color:var(--text-dim);padding:8px 0;">Add a vehicle first from Vehicle Details.</div>`;
+    return;
+}
   wrap.innerHTML = `
     <div class="field"><label>Date</label><input id="tDate" type="date" value="${todayISO()}"></div>
-    <div class="field"><label>Vehicle</label><select id="tVehicle">${vehicleOptions(preselectVehicle)}</select></div>
+    <div class="field"><label>Vehicle</label><select id="tVehicle">
+${vehicles.map(v => `
+<option value="${v.id}" ${v.id === preselectVehicle ? "selected" : ""}>
+${v.name} - ${v.regNo}
+</option>`).join("")}
+</select></div>
     <div class="field"><label>Starting Odometer (km)</label><input id="tStart" type="number"></div>
     <div class="field"><label>Ending Odometer (km)</label><input id="tEnd" type="number"></div>
     <div class="field mb0"><label>Distance</label><div class="mono" id="tDist" style="font-size:20px;font-weight:700;padding:8px 0;">0 km</div></div>
@@ -63,7 +84,7 @@ function renderForm(){
     <button class="btn mt8" id="saveTripBtn">Save Trip</button>
   `;
   const vSel = $('#tVehicle');
-  const applyOdo = () => { const v = DB.vehicles.get(vSel.value); if(v) $('#tStart').value = v.odometer||0; recalc(); };
+  const applyOdo = () => { const v = vehicles.find(vehicle => vehicle.id === vSel.value); if(v) $('#tStart').value = v.odometer||0; recalc(); };
   const recalc = () => { const s=Number($('#tStart').value)||0, e=Number($('#tEnd').value)||0; $('#tDist').textContent = Math.max(0,e-s) + ' km'; };
   vSel.onchange = applyOdo; $('#tStart').oninput = recalc; $('#tEnd').oninput = recalc;
   applyOdo();
@@ -86,7 +107,7 @@ if (!result.success) {
     toast("Failed to save trip");
     return;
 }
-    const v = DB.vehicles.get(vSel.value); if(v && end > (v.odometer||0)){ v.odometer = end; DB.vehicles.upsert(v); }
+    const v = vehicles.find(vehicle => vehicle.id === vSel.value); if(v && end > (v.odometer||0)){ v.odometer = end;  }
     toast('Trip saved'); togglePanel(false); renderList();
   };
 }
@@ -105,7 +126,7 @@ async function renderList() {
 
   $('#tripList').innerHTML = trips.length ? trips.map(t => {
 
-    const v = DB.vehicles.get(t.vehicleId);
+    const v = vehicles.find(vehicle => vehicle.id === t.vehicleId);
 
     return `<div class="card">
       <div class="row-between">
@@ -138,8 +159,14 @@ async function renderList() {
 
   }).join('') : `<div class="empty"><div class="ic">🧭</div>No trips yet.</div>`;
 }
-renderList();
-if(preselectVehicle) togglePanel(true);
+(async () => {
+    await loadVehicles();
+    await renderList();
+
+    if (preselectVehicle) {
+        togglePanel(true);
+    }
+})();
 </script>
 </body>
 </html>
