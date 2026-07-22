@@ -1,4 +1,4 @@
-const SCHEDULE_API_URL = "http://localhost:5000/api/schedule";
+const SCHEDULE_API_URL ="https://fleet-manager-o3ma.onrender.com/api/schedule";
 
 // Save Schedule
 async function addSchedule(scheduleData) {

@@ -40,8 +40,13 @@
     <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
     <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
     <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
-    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
-    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'">
+    <span class="ic">📄</span>Documents
+</button>
+
+<button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'">
+    <span class="ic">🔧</span>Maintenance
+</button>
   </nav>
 </div>
 <div class="toast" id="toast"></div>
@@ -109,7 +114,7 @@ if (!res.success) {
   return;
 }
 
-const v = res.vehicles;
+const v = res.data;
   if(!v){ location.href = 'fuel.html'; return; }
   const isEV = v.fuelType === 'Electric (EV)';
   $('#vdName').textContent = v.name;
@@ -342,7 +347,7 @@ if (!res.success) {
     return;
 }
 
-const entries = res.vehicles.slice().reverse();
+const entries = (res.data || []).slice().reverse();
   if(!entries.length){ $('#entryList').innerHTML = `<div class="empty" style="padding:16px;"><div class="ic">${isEV?'🔋':'⛽'}</div>No entries yet for this vehicle.</div>`; return; }
   $('#entryList').innerHTML = entries.map(en => isEV ? `
     <div class="card fuel-history-card">

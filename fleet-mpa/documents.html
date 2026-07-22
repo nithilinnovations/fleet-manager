@@ -33,8 +33,13 @@
     <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
     <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
     <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
-    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
-    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'">
+    <span class="ic">📄</span>Documents
+</button>
+
+<button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'">
+    <span class="ic">🔧</span>Maintenance
+</button>
   </nav>
 </div>
 <div class="toast" id="toast"></div>
@@ -59,15 +64,11 @@ async function loadDocument(vehicleId) {
 
     const res = await getDocument(vehicleId);
 
-    if (res.success && res.vehicles) {
-
-        renderDoc(vehicleId, res.vehicles);
-
-    } else {
-
-        renderDoc(vehicleId, null);
-
-    }
+    if (res.success && res.data) {
+     renderDoc(vehicleId, res.data);
+} else {
+    renderDoc(vehicleId, null);
+}
 
 }
 function renderDoc(vid, docData = null){
@@ -222,9 +223,9 @@ let result = await getDocument(v.id);
 
 let res;
 
-if (result.success && result.vehicles) {
+if (result.success && result.data) {
 
-    res = await updateDocument(result.vehicles.id, payload);
+    res = await updateDocument(result.data.id, payload);
 
 } else {
 

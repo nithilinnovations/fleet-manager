@@ -38,8 +38,13 @@
     <button class="nav-btn" data-page="index.html" onclick="location.href='index.html'"><span class="ic">🏠</span>Home</button>
     <button class="nav-btn" data-page="vehicles.html" onclick="location.href='vehicles.html'"><span class="ic">🚗</span>Vehicles</button>
     <button class="nav-btn" data-page="fuel.html" onclick="location.href='fuel.html'"><span class="ic">⛽</span>Fuel / Charging</button>
-    <button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'"><span class="ic">🔧</span>Maintenance</button>
-    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'"><span class="ic">📄</span>Documents</button>
+    <button class="nav-btn" data-page="documents.html" onclick="location.href='documents.html'">
+    <span class="ic">📄</span>Documents
+</button>
+
+<button class="nav-btn" data-page="maintenance.html" onclick="location.href='maintenance.html'">
+    <span class="ic">🔧</span>Maintenance
+</button>
   </nav>
 
   <button class="fab" id="fabBtn" onclick="openVehicleForm()">+</button>
@@ -130,7 +135,10 @@ if (existingId) {
     const result = await getVehicle(existingId);
 
     if (result.success) {
-        v = result.vehicles;
+        v = result.data;
+    } else {
+        toast("Failed to load vehicle details");
+        return;
     }
 }
   const isEV = (fuelType) => fuelType === 'Electric (EV)';
@@ -268,7 +276,7 @@ if (!result.success) {
     return;
 }
 
-const v = result.vehicles;
+const v = result.data;
   $('#vdName').textContent = v.name;
   $('#vdEditBtn').onclick = () => openVehicleForm(v.id);
 
