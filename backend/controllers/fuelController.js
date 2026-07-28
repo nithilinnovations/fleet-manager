@@ -53,8 +53,31 @@ const getFuelHistory = async (req, res) => {
     });
   }
 };
+// Delete Fuel Entry
+const deleteFuel = async (req, res) => {
+  try {
+
+    const { id } = req.params;
+
+    await db.collection("fuel").doc(id).delete();
+
+    res.json({
+      success: true,
+      message: "Fuel entry deleted successfully",
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
 
 module.exports = {
   addFuel,
   getFuelHistory,
+  deleteFuel,
 };

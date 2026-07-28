@@ -16,3 +16,10 @@ async function getFuelHistory(vehicleId) {
   const res = await fetch(`${FUEL_API}/${vehicleId}`);
   return await res.json();
 }
+async function deleteFuelEntry(id) {
+  const res = await fetch(`${FUEL_API}/${id}`, {
+    method: "DELETE"
+  });
+
+  return await res.json();
+}
