@@ -680,15 +680,104 @@ if (!vehicleRes.success) {
 
 
   $('#tabBody').innerHTML = `
-    <div class="report-picker no-print" id="reportPicker"></div>
-    <div class="card" id="reportOutput"><div class="empty" style="padding:10px;">Choose a report above.</div></div>
-  `;
-  $('#reportPicker').innerHTML = REPORTS.map(r=>`<button data-id="${r.id}">${r.label}</button>`).join('');
-  $$('#reportPicker button').forEach(b => b.onclick = () => {
-    $$('#reportPicker button').forEach(x=>x.classList.toggle('active', x===b));
-    currentReport = REPORTS.find(r=>r.id===b.dataset.id);
-    drawReport();
-  });
+<div class="report-grid" id="reportPicker">
+
+    <div class="report-card" data-id="vehicle">
+        <div class="icon">🚗</div>
+        <h3>Vehicle-wise</h3>
+        <p>Maintenance</p>
+    </div>
+
+    <div class="report-card" data-id="monthly">
+        <div class="icon">📅</div>
+        <h3>Monthly</h3>
+        <p>Maintenance</p>
+    </div>
+
+    <div class="report-card" data-id="history">
+        <div class="icon">📜</div>
+        <h3>Service</h3>
+        <p>History</p>
+    </div>
+
+    <div class="report-card" data-id="cost">
+        <div class="icon">💰</div>
+        <h3>Cost</h3>
+        <p>Analysis</p>
+    </div>
+
+    <div class="report-card" data-id="upcoming">
+        <div class="icon">⏰</div>
+        <h3>Upcoming</h3>
+        <p>Service</p>
+    </div>
+
+    <div class="report-card" data-id="overdue">
+        <div class="icon">🚨</div>
+        <h3>Overdue</h3>
+        <p>Service</p>
+    </div>
+
+    <div class="report-card" data-id="oil">
+        <div class="icon">🛢</div>
+        <h3>Engine Oil</h3>
+        <p>History</p>
+    </div>
+
+    <div class="report-card" data-id="tyres">
+        <div class="icon">🛞</div>
+        <h3>Tyre</h3>
+        <p>History</p>
+    </div>
+
+    <div class="report-card" data-id="battery">
+        <div class="icon">🔋</div>
+        <h3>Battery</h3>
+        <p>History</p>
+    </div>
+
+    <div class="report-card" data-id="insurance">
+        <div class="icon">🛡</div>
+        <h3>Insurance</h3>
+        <p>Renewal</p>
+    </div>
+
+    <div class="report-card" data-id="puc">
+        <div class="icon">📄</div>
+        <h3>PUC</h3>
+        <p>Report</p>
+    </div>
+
+    <div class="report-card" data-id="fc">
+        <div class="icon">🚘</div>
+        <h3>FC</h3>
+        <p>Renewal</p>
+    </div>
+
+    <div class="report-card full" data-id="expense">
+        <div class="icon">💸</div>
+        <h3>Expense Report</h3>
+        <p>All Expenses</p>
+    </div>
+
+</div>
+
+<div id="reportOutput"></div>
+`;
+ 
+ $$(".report-card").forEach(card => {
+
+    card.onclick = () => {
+
+        currentReport = REPORTS.find(r =>
+            r.id === card.dataset.id
+        );
+
+        drawReport();
+
+    };
+
+});
 }
 function drawReport(){
   if(!currentReport) return;
@@ -697,12 +786,13 @@ function drawReport(){
     <thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${rows.length ? rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${columns.length}" style="color:var(--text-dim);">No data for this report yet.</td></tr>`}</tbody>
   </table></div>`;
-  $('#reportOutput').innerHTML = `
+  $('#reportOutput').innerHTML = `<div class="card report-result">
     <div class="card-title">${currentReport.label} <small>${rows.length} row${rows.length!==1?'s':''}</small></div>
     ${table}
     <div class="btn-row mt16 no-print">
       <button class="btn secondary sm" id="exportCsvBtn">⬇ Export Excel (CSV)</button>
       <button class="btn secondary sm" id="printBtn">🖨 Print / Save PDF</button>
+    </div>
     </div>
   `;
   $('#exportCsvBtn').onclick = () => {
