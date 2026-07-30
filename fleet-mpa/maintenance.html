@@ -583,11 +583,23 @@ console.log("Interval Days =", document.getElementById("sIntDays").value);
 let vehicles = [];
 let maintData = [];
 let reportSchedules = [];
+let fromDate = "";
+let toDate = "";
 const REPORTS = [
   { id:'vehicle', label:'Vehicle-wise Maintenance', gen: () => {
     const rows = vehicles.map(v => {
 
-    const recs = maintData.filter(m => m.vehicleId === v.id);
+    const recs = maintData.filter(m => {
+
+    if (m.vehicleId !== v.id) return false;
+
+    if (fromDate && m.date < fromDate) return false;
+
+    if (toDate && m.date > toDate) return false;
+
+    return true;
+
+});
 
     return [
         v.name,
@@ -603,9 +615,47 @@ const REPORTS = [
     const byMonth = {}; maintData.forEach(m=>{ const k=m.date.slice(0,7); byMonth[k]=byMonth[k]||{count:0,cost:0}; byMonth[k].count++; byMonth[k].cost+=Number(m.cost)||0; });
     const rows = Object.keys(byMonth).sort().reverse().map(k=>[k, byMonth[k].count, fmtMoney(byMonth[k].cost)]);
     return { columns:['Month','Records','Total Cost'], rows }; } },
-  { id:'history', label:'Service History', gen: () => {
-    const rows = maintData.map(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); return [fmtDate(m.date), v?v.name:'—', m.category, m.odometer, m.vendor||'—', fmtMoney(m.cost)]; });
-    return { columns:['Date','Vehicle','Category','Odometer','Vendor','Cost'], rows }; } },
+  { 
+    id:'history',
+    label:'Service History',
+
+    gen: () => {
+
+        const rows = maintData
+
+        .filter(m => {
+
+            if (fromDate && m.date < fromDate) return false;
+
+            if (toDate && m.date > toDate) return false;
+
+            return true;
+
+        })
+
+        .map(m => {
+
+            const v = vehicles.find(v => v.id === m.vehicleId);
+
+            return [
+                fmtDate(m.date),
+                v ? v.name : '—',
+                m.category,
+                m.odometer,
+                m.vendor || '—',
+                fmtMoney(m.cost)
+            ];
+
+        });
+
+        return {
+            columns:['Date','Vehicle','Category','Odometer','Vendor','Cost'],
+            rows
+        };
+
+    }
+
+},
   { id:'cost', label:'Cost Analysis (by Category)', gen: () => {
     const byCat = {}; maintData.forEach(m=>{ byCat[m.category]=(byCat[m.category]||0)+(Number(m.cost)||0); });
     const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k, fmtMoney(v)]);
@@ -781,6 +831,7 @@ if (!vehicleRes.success) {
 }
 function drawReport(){
   if(!currentReport) return;
+ 
   const { columns, rows } = currentReport.gen();
   const table = `<div class="report-table-wrap"><table class="report-table">
     <thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
@@ -788,6 +839,27 @@ function drawReport(){
   </table></div>`;
   $('#reportOutput').innerHTML = `<div class="card report-result">
     <div class="card-title">${currentReport.label} <small>${rows.length} row${rows.length!==1?'s':''}</small></div>
+    ${['vehicle','history','oil','tyres','battery'].includes(currentReport.id) ? `
+
+<div class="report-filter">
+
+    <div class="field">
+        <label>From Date</label>
+        <input type="date" id="fromDate">
+    </div>
+
+    <div class="field">
+        <label>To Date</label>
+        <input type="date" id="toDate">
+    </div>
+
+    <button class="btn secondary sm" id="filterBtn">
+        Filter
+    </button>
+
+</div>
+
+` : ''}
     ${table}
     <div class="btn-row mt16 no-print">
       <button class="btn secondary sm" id="exportCsvBtn">⬇ Export Excel (CSV)</button>
@@ -802,6 +874,19 @@ function drawReport(){
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${currentReport.id}-report.csv`; a.click();
   };
   $('#printBtn').onclick = () => window.print();
+  const filterBtn = document.getElementById("filterBtn");
+
+if (filterBtn) {
+
+    filterBtn.onclick = () => {
+         fromDate = document.getElementById("fromDate").value;
+        toDate = document.getElementById("toDate").value;
+
+        drawReport();
+
+    };
+
+}
 }
 
 /* ============================== APPROVALS TAB ============================== */

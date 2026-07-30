@@ -118,7 +118,11 @@ const v = res.data;
   if(!v){ location.href = 'fuel.html'; return; }
   const isEV = v.fuelType === 'Electric (EV)';
   $('#vdName').textContent = v.name;
-  isEV ? renderEvForm(v) : renderFuelForm(v);
+  if (isEV) {
+    renderEvForm(v);
+} else {
+    await renderFuelForm(v);
+}
   renderEntries(v, isEV);
 }
 
@@ -130,7 +134,7 @@ function lastKnownOdo(v){
   return Math.max(v.odometer||0, lastFuel, lastEv);
 }
 
-function renderFuelForm(v){
+async function renderFuelForm(v){
   $('#formWrap').innerHTML = `
     <div class="card">
       <div class="card-title">Add Fuel Entry</div>
@@ -163,7 +167,19 @@ function renderFuelForm(v){
       <button class="btn mt8" id="saveFuelBtn">Save Fuel Entry</button>
     </div>
   `;
-  $('#fuStart').value = lastKnownOdo(v);
+  const history = await getFuelHistory(v.id);
+  console.log(history.data);
+if (history.success && history.data.length) {
+
+    const lastEntry = history.data[0];
+
+    $('#fuStart').value = lastEntry.endOdo;
+
+} else {
+
+    $('#fuStart').value = v.odometer || "";
+
+}
   function recalc(changed = "") {
 
     const s = Number($("#fuStart").value) || 0;
