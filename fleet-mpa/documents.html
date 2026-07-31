@@ -63,7 +63,7 @@ function docRow(label, key, docs){
 async function loadDocument(vehicleId) {
 
     const res = await getDocument(vehicleId);
-
+    console.log("API Response:", res);
     if (res.success && res.data) {
      renderDoc(vehicleId, res.data);
 } else {
@@ -168,9 +168,9 @@ let result = await getDocument(v.id);
 
 let res;
 
-if (result.success && result.vehicles) {
+if (result.success && result.data) {
 
-    res = await updateDocument(result.vehicles.id, payload);
+    res = await updateDocument(result.data.id, payload);
 
 } else {
 
