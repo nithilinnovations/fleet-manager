@@ -11,3 +11,8 @@ async function getVehicle(id) {
   const res = await fetch(`${API_URL}/${id}`);
   return await res.json();
 }
+
+async function getAllFuel() {
+    const res = await fetch(FUEL_API);
+    return await res.json();
+}

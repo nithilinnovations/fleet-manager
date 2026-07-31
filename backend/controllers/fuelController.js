@@ -75,9 +75,37 @@ const deleteFuel = async (req, res) => {
 
   }
 };
+const getAllFuel = async (req, res) => {
+  try {
+    const snapshot = await db.collection("fuel").get();
+
+    const data = [];
+
+    snapshot.forEach((doc) => {
+      data.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    res.json({
+      success: true,
+      data,
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
 
 module.exports = {
   addFuel,
   getFuelHistory,
   deleteFuel,
+  getAllFuel,
 };

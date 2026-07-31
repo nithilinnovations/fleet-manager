@@ -49,6 +49,7 @@
 <script src="js/vehicle-api.js"></script>
 <script src="js/maintenance-api.js"></script>
 <script src="js/schedule-api.js"></script>
+<script src="js/fuel-entry-api.js"></script>
 <script>
 initPage('maintenance.html');
 let activeTab = 'dashboard';
@@ -583,6 +584,7 @@ console.log("Interval Days =", document.getElementById("sIntDays").value);
 let vehicles = [];
 let maintData = [];
 let reportSchedules = [];
+let fuelData = [];
 let fromDate = "";
 let toDate = "";
 const REPORTS = [
@@ -656,10 +658,71 @@ const REPORTS = [
     }
 
 },
+
   { id:'cost', label:'Cost Analysis (by Category)', gen: () => {
     const byCat = {}; maintData.forEach(m=>{ byCat[m.category]=(byCat[m.category]||0)+(Number(m.cost)||0); });
     const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k, fmtMoney(v)]);
     return { columns:['Category','Total Cost'], rows }; } },
+    {
+  id: 'totalcost',
+  label: 'Total Cost Analysis',
+
+  gen: () => {
+      let fuelTotal = 0;
+    let maintenanceTotal = 0;
+    const rows = maintData
+      .filter(m => {
+
+        if (fromDate && m.date < fromDate) return false;
+        if (toDate && m.date > toDate) return false;
+
+        const vehicle = document.getElementById("costVehicle")?.value || "All";
+
+        if (vehicle !== "All" && m.vehicleId !== vehicle) return false;
+
+        return true;
+
+      })
+      .map(m => {
+
+        const v = vehicles.find(x => x.id === m.vehicleId);
+
+        const fuel = fuelData.find(f =>
+    f.vehicleId === m.vehicleId &&
+    f.date === m.date
+);
+
+const fuelExpense = fuel ? Number(fuel.cost) || 0 : 0;  // Later fuel module integrate pannuvom
+        const maintenanceExpense = Number(m.cost) || 0;
+        fuelTotal += fuelExpense;
+maintenanceTotal += maintenanceExpense;
+        return [
+          fmtDate(m.date),
+          v ? v.name : "-",
+          m.category,
+          fmtMoney(fuelExpense),
+          fmtMoney(maintenanceExpense),
+          fmtMoney(fuelExpense + maintenanceExpense)
+        ];
+
+      });
+
+    return {
+    columns: [
+        "Date",
+        "Vehicle",
+        "Category",
+        "Fuel Expenses",
+        "Maintenance Expenses",
+        "Cost"
+    ],
+    rows,
+    fuelTotal,
+    maintenanceTotal,
+    totalCost: fuelTotal + maintenanceTotal
+};
+  }
+},
   { id:'upcoming', label:'Upcoming Service', gen: () => {
     const rows = [];
     vehicles.forEach(v => categoriesFor(v).forEach(cat=>{ const st=computeScheduleStatus(v,cat);
@@ -698,6 +761,7 @@ const REPORTS = [
     maintData.forEach(m=>{ const v=vehicles.find(v => v.id === m.vehicleId); rows.push([fmtDate(m.date), m.category, v?v.name:'—', fmtMoney(m.cost)]); });
     rows.sort((a,b)=> new Date(b[0]) - new Date(a[0]));
     return { columns:['Date','Type','Vehicle','Cost'], rows }; } }
+
 ];
 
 let currentReport = null;
@@ -716,7 +780,13 @@ const vehicleRes = await getVehicles();
 
 vehicles = vehicleRes.vehicles || [];
 const scheduleRes = await getSchedule();
+const fuelRes = await getAllFuel();
 
+if (fuelRes.success) {
+    fuelData = fuelRes.data;
+} else {
+    fuelData = [];
+}
 if (!scheduleRes.success) {
     toast("Failed to load schedules");
     return;
@@ -803,8 +873,12 @@ if (!vehicleRes.success) {
         <h3>FC</h3>
         <p>Renewal</p>
     </div>
-
-    <div class="report-card full" data-id="expense">
+   <div class="report-card" data-id="totalcost">
+    <div class="icon">📊</div>
+    <h3>Total Cost</h3>
+    <p>Analysis</p>
+</div>
+    <div class="report-card" data-id="expense">
         <div class="icon">💸</div>
         <h3>Expense Report</h3>
         <p>All Expenses</p>
@@ -832,14 +906,22 @@ if (!vehicleRes.success) {
 function drawReport(){
   if(!currentReport) return;
  
-  const { columns, rows } = currentReport.gen();
+  const report = currentReport.gen();
+
+const {
+    columns,
+    rows,
+    fuelTotal = 0,
+    maintenanceTotal = 0,
+    totalCost = 0
+} = report;
   const table = `<div class="report-table-wrap"><table class="report-table">
     <thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${rows.length ? rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${columns.length}" style="color:var(--text-dim);">No data for this report yet.</td></tr>`}</tbody>
   </table></div>`;
   $('#reportOutput').innerHTML = `<div class="card report-result">
     <div class="card-title">${currentReport.label} <small>${rows.length} row${rows.length!==1?'s':''}</small></div>
-    ${['vehicle','history','oil','tyres','battery'].includes(currentReport.id) ? `
+    ${['vehicle','history','oil','tyres','battery','totalcost'].includes(currentReport.id) ? `
 
 <div class="report-filter">
 
@@ -852,7 +934,19 @@ function drawReport(){
         <label>To Date</label>
         <input type="date" id="toDate">
     </div>
-
+     ${currentReport.id === "totalcost" ? `
+<div class="field">
+    <label>Vehicle</label>
+    <select id="costVehicle">
+        <option value="All">All Vehicles</option>
+        ${vehicles.map(v => `
+            <option value="${v.id}">
+                ${v.name}
+            </option>
+        `).join("")}
+    </select>
+</div>
+` : ""}
     <button class="btn secondary sm" id="filterBtn">
         Filter
     </button>
@@ -861,6 +955,28 @@ function drawReport(){
 
 ` : ''}
     ${table}
+    ${currentReport.id === "totalcost" ? `
+<div class="card mt16">
+
+    <div class="list-row">
+        <span>Fuel Total</span>
+        <strong>${fmtMoney(fuelTotal)}</strong>
+    </div>
+
+    <div class="list-row">
+        <span>Maintenance Total</span>
+        <strong>${fmtMoney(maintenanceTotal)}</strong>
+    </div>
+
+    <hr>
+
+    <div class="list-row">
+        <span><b>Total Cost</b></span>
+        <strong>${fmtMoney(totalCost)}</strong>
+    </div>
+
+</div>
+` : ""}
     <div class="btn-row mt16 no-print">
       <button class="btn secondary sm" id="exportCsvBtn">⬇ Export Excel (CSV)</button>
       <button class="btn secondary sm" id="printBtn">🖨 Print / Save PDF</button>
