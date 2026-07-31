@@ -617,110 +617,105 @@ const REPORTS = [
     const byMonth = {}; maintData.forEach(m=>{ const k=m.date.slice(0,7); byMonth[k]=byMonth[k]||{count:0,cost:0}; byMonth[k].count++; byMonth[k].cost+=Number(m.cost)||0; });
     const rows = Object.keys(byMonth).sort().reverse().map(k=>[k, byMonth[k].count, fmtMoney(byMonth[k].cost)]);
     return { columns:['Month','Records','Total Cost'], rows }; } },
-  { 
-    id:'history',
-    label:'Service History',
-
-    gen: () => {
-
-        const rows = maintData
-
-        .filter(m => {
-
-            if (fromDate && m.date < fromDate) return false;
-
-            if (toDate && m.date > toDate) return false;
-
-            return true;
-
-        })
-
-        .map(m => {
-
-            const v = vehicles.find(v => v.id === m.vehicleId);
-
-            return [
-                fmtDate(m.date),
-                v ? v.name : '—',
-                m.category,
-                m.odometer,
-                m.vendor || '—',
-                fmtMoney(m.cost)
-            ];
-
-        });
-
-        return {
-            columns:['Date','Vehicle','Category','Odometer','Vendor','Cost'],
-            rows
-        };
-
-    }
-
-},
-
-  { id:'cost', label:'Cost Analysis (by Category)', gen: () => {
-    const byCat = {}; maintData.forEach(m=>{ byCat[m.category]=(byCat[m.category]||0)+(Number(m.cost)||0); });
-    const rows = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k, fmtMoney(v)]);
-    return { columns:['Category','Total Cost'], rows }; } },
-    {
-  id: 'totalcost',
-  label: 'Total Cost Analysis',
+  {
+  id: "totalcost",
+  label: "Total Cost Analysis",
 
   gen: () => {
-      let fuelTotal = 0;
-    let maintenanceTotal = 0;
-    const rows = maintData
-      .filter(m => {
 
-        if (fromDate && m.date < fromDate) return false;
-        if (toDate && m.date > toDate) return false;
+    const vehicle = document.getElementById("costVehicle")?.value || "All";
 
-        const vehicle = document.getElementById("costVehicle")?.value || "All";
+    let reportData = [];
 
-        if (vehicle !== "All" && m.vehicleId !== vehicle) return false;
+    // Maintenance
+    maintData.forEach(m => {
 
-        return true;
+      if (fromDate && m.date < fromDate) return;
+      if (toDate && m.date > toDate) return;
+      if (vehicle !== "All" && m.vehicleId !== vehicle) return;
 
-      })
-      .map(m => {
+      const v = vehicles.find(x => x.id === m.vehicleId);
 
-        const v = vehicles.find(x => x.id === m.vehicleId);
-
-        const fuel = fuelData.find(f =>
-    f.vehicleId === m.vehicleId &&
-    f.date === m.date
-);
-
-const fuelExpense = fuel ? Number(fuel.cost) || 0 : 0;  // Later fuel module integrate pannuvom
-        const maintenanceExpense = Number(m.cost) || 0;
-        fuelTotal += fuelExpense;
-maintenanceTotal += maintenanceExpense;
-        return [
-          fmtDate(m.date),
-          v ? v.name : "-",
-          m.category,
-          fmtMoney(fuelExpense),
-          fmtMoney(maintenanceExpense),
-          fmtMoney(fuelExpense + maintenanceExpense)
-        ];
-
+      reportData.push({
+        date: m.date,
+        vehicle: v ? v.name : "-",
+        category: m.category,
+        fuel: 0,
+        maintenance: Number(m.cost) || 0
       });
 
+    });
+
+    // Fuel
+    fuelData.forEach(f => {
+
+      if (fromDate && f.date < fromDate) return;
+      if (toDate && f.date > toDate) return;
+      if (vehicle !== "All" && f.vehicleId !== vehicle) return;
+
+      const v = vehicles.find(x => x.id === f.vehicleId);
+
+      reportData.push({
+        date: f.date,
+        vehicle: v ? v.name : "-",
+        category: "Fuel Filling",
+        fuel: Number(f.cost) || 0,
+        maintenance: 0
+      });
+
+    });
+
+    reportData.sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+    // Filter by button
+    const filteredData = reportData.filter(r => {
+
+      if (reportView === "fuel")
+        return r.fuel > 0;
+
+      if (reportView === "maintenance")
+        return r.maintenance > 0;
+
+      return true;
+
+    });
+
+    // Totals only for visible rows
+    const fuelTotal = filteredData.reduce((t,r)=>t+r.fuel,0);
+
+    const maintenanceTotal = filteredData.reduce((t,r)=>t+r.maintenance,0);
+
+    const totalCost = fuelTotal + maintenanceTotal;
+
+    const rows = filteredData.map(r => [
+
+      fmtDate(r.date),
+      r.vehicle,
+      r.category,
+      r.fuel ? fmtMoney(r.fuel) : "-",
+      r.maintenance ? fmtMoney(r.maintenance) : "-",
+      fmtMoney(r.fuel + r.maintenance)
+
+    ]);
+
     return {
-    columns: [
+
+      columns:[
         "Date",
         "Vehicle",
         "Category",
         "Fuel Expenses",
         "Maintenance Expenses",
         "Cost"
-    ],
-    rows,
-    fuelTotal,
-    maintenanceTotal,
-    totalCost: fuelTotal + maintenanceTotal
-};
+      ],
+
+      rows,
+      fuelTotal,
+      maintenanceTotal,
+      totalCost
+
+    };
+
   }
 },
   { id:'upcoming', label:'Upcoming Service', gen: () => {
@@ -764,7 +759,7 @@ maintenanceTotal += maintenanceExpense;
 
 ];
 
-let currentReport = null;
+let reportView = "both";
 async function renderReportsTab(){
   
   const maintenanceRes = await getMaintenance();
@@ -934,26 +929,31 @@ const {
         <label>To Date</label>
         <input type="date" id="toDate">
     </div>
-     ${currentReport.id === "totalcost" ? `
-<div class="field">
-    <label>Vehicle</label>
-    <select id="costVehicle">
-        <option value="All">All Vehicles</option>
-        ${vehicles.map(v => `
-            <option value="${v.id}">
-                ${v.name}
-            </option>
-        `).join("")}
-    </select>
-</div>
-` : ""}
-    <button class="btn secondary sm" id="filterBtn">
-        Filter
-    </button>
+
+    <div class="field">
+        <label>Vehicle</label>
+        <select id="costVehicle">
+            <option value="All">All Vehicles</option>
+            ${vehicles.map(v => `
+                <option value="${v.id}">${v.name}</option>
+            `).join("")}
+        </select>
+    </div>
+
+    <div class="filter-btn-wrap">
+        <button class="btn secondary sm" id="filterBtn">
+            Filter
+        </button>
+    </div>
 
 </div>
 
 ` : ''}
+<div class="report-type-buttons">
+    <button class="btn secondary sm reportTypeBtn active" data-type="both">Both</button>
+    <button class="btn secondary sm reportTypeBtn" data-type="fuel">Fuel Expenses</button>
+    <button class="btn secondary sm reportTypeBtn" data-type="maintenance">Maintenance Expenses</button>
+</div>
     ${table}
     ${currentReport.id === "totalcost" ? `
 <div class="card mt16">
@@ -1003,6 +1003,19 @@ if (filterBtn) {
     };
 
 }
+document.querySelectorAll(".reportTypeBtn").forEach(btn => {
+
+    btn.classList.toggle("active", btn.dataset.type === reportView);
+
+    btn.onclick = () => {
+
+        reportView = btn.dataset.type;
+
+        drawReport();
+
+    };
+
+});
 }
 
 /* ============================== APPROVALS TAB ============================== */
